@@ -219,6 +219,16 @@ impl serde::Deserializer for Deserializer {
         visitor.visit_str(&s[..])
     }
 
+    #[inline]
+    fn deserialize_enum<V>(&mut self,
+                     _enum: &'static str,
+                     _variants: &'static [&'static str],
+                     mut visitor: V) -> Result<V::Value>
+        where V: serde::de::EnumVisitor,
+    {
+        visitor.visit(VariantVisitor { de: self })
+    }
+
 }
 
 struct SeqVisitor<'a> {
@@ -278,3 +288,45 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
         Ok(())
     }
 }
+
+struct VariantVisitor<'a> {
+    de: &'a mut Deserializer
+}
+
+impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
+    type Error = Error;
+
+    fn visit_variant<V>(&mut self) -> Result<V>
+        where V: serde::Deserialize,
+    {
+        let value = try!(serde::Deserialize::deserialize(self.de));
+        Ok(value)
+    }
+
+    fn visit_unit(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn visit_newtype<T>(&mut self) -> Result<T>
+        where T: serde::de::Deserialize,
+    {
+        Err(de::Error::syntax("newtype variants are not supported"))
+    }
+
+    fn visit_tuple<V>(&mut self,
+                      _len: usize,
+                      _visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor,
+    {
+        Err(de::Error::syntax("tuple variants are not supported"))
+    }
+
+    fn visit_struct<V>(&mut self,
+                       _fields: &'static [&'static str],
+                       _visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor,
+    {
+        Err(de::Error::syntax("struct variants are not supported"))
+    }
+}
+

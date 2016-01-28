@@ -172,3 +172,19 @@ fn deserialize_struct_extra_keys() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn deserialize_option() {
+    let v = Value::Data(b"Orange".to_vec());
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    enum Fruit {
+        Orange,
+        Apple
+    }
+
+    let mut de = Deserializer::new(v).unwrap();
+    let actual: Fruit = Deserialize::deserialize(&mut de).unwrap();
+
+    assert_eq!(Fruit::Orange, actual);
+}
