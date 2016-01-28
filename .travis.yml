@@ -1,0 +1,6 @@
+language: rust
+sudo: false
+
+rust:
+  # TODO feature flags. This is needed for tests right now.
+  - nightly
