@@ -122,3 +122,53 @@ fn deserialize_hash_map_string_u8() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn deserialize_struct_out_of_order() {
+    let v = vec![
+        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+    ];
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: String,
+        b: String,
+    }
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = Simple {
+        a: "apple".to_owned(),
+        b: "banana".to_owned(),
+
+    };
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_struct_extra_keys() {
+    let v = vec![
+        Value::Data(b"c".to_vec()), Value::Data(b"cranberry".to_vec()),
+        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+    ];
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: String,
+        b: String,
+    }
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = Simple {
+        a: "apple".to_owned(),
+        b: "banana".to_owned(),
+    };
+
+    assert_eq!(expected, actual);
+}

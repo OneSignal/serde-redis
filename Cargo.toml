@@ -7,9 +7,9 @@ authors = ["Joe Wilm <joe@jwilm.com>"]
 redis = "0.5"
 
 [dependencies.serde]
-git = "https://github.com/serde-rs/serde"
-rev = "b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6"
+git = "https://github.com/jwilm/serde"
+rev = "b0bc8e35946d5937f9af73804518a7ac8b5bf7ae"
 
 [dependencies.serde_macros]
-git = "https://github.com/serde-rs/serde"
-rev = "b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6"
+git = "https://github.com/jwilm/serde"
+rev = "b0bc8e35946d5937f9af73804518a7ac8b5bf7ae"

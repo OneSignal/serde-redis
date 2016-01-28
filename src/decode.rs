@@ -14,7 +14,7 @@ pub enum Error {
     EndOfStream,
     UnknownField(String),
     MissingField(&'static str),
-    VisitNotSupported,
+    DeserializeNotSupported,
     WrongValue(String),
     FromUtf8(string::FromUtf8Error),
     ParseInt(num::ParseIntError),
@@ -132,9 +132,9 @@ impl Deserializer {
 }
 
 macro_rules! impl_num {
-    ($ty:ty, $visitor_method:ident) => {
+    ($ty:ty, $deserialize_method:ident, $visitor_method:ident) => {
         #[inline]
-        fn $visitor_method<V>(&mut self, mut visitor: V) -> Result<V::Value>
+        fn $deserialize_method<V>(&mut self, mut visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor,
         {
             let redis_value = try!(self.next());
@@ -159,53 +159,66 @@ impl serde::Deserializer for Deserializer {
     type Error = Error;
 
     #[inline]
-    fn visit<V>(&mut self, _visitor: V) -> Result<V::Value>
+    fn deserialize<V>(&mut self, _visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        Err(Error::VisitNotSupported)
+        Err(Error::DeserializeNotSupported)
     }
 
-    fn visit_string<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    #[inline]
+    fn deserialize_string<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
         let s = try!(self.read_string());
         visitor.visit_string(s)
     }
 
-    impl_num!(u8, visit_u8);
-    impl_num!(u16, visit_u16);
-    impl_num!(u32, visit_u32);
-    impl_num!(u64, visit_u64);
-    impl_num!(usize, visit_usize);
+    impl_num!(u8, deserialize_u8, visit_u8);
+    impl_num!(u16, deserialize_u16, visit_u16);
+    impl_num!(u32, deserialize_u32, visit_u32);
+    impl_num!(u64, deserialize_u64, visit_u64);
+    impl_num!(usize, deserialize_usize, visit_usize);
 
-    impl_num!(i8, visit_i8);
-    impl_num!(i16, visit_i16);
-    impl_num!(i32, visit_i32);
-    impl_num!(i64, visit_i64);
-    impl_num!(isize, visit_isize);
+    impl_num!(i8, deserialize_i8, visit_i8);
+    impl_num!(i16, deserialize_i16, visit_i16);
+    impl_num!(i32, deserialize_i32, visit_i32);
+    impl_num!(i64, deserialize_i64, visit_i64);
+    impl_num!(isize, deserialize_isize, visit_isize);
 
-    impl_num!(f32, visit_f32);
-    impl_num!(f64, visit_f64);
+    impl_num!(f32, deserialize_f32, visit_f32);
+    impl_num!(f64, deserialize_f64, visit_f64);
 
-    fn visit_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    #[inline]
+    fn deserialize_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor
     {
         visitor.visit_seq(SeqVisitor { de: self })
     }
 
 
-    fn visit_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    #[inline]
+    fn deserialize_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
         visitor.visit_map(MapVisitor { de: self })
     }
 
-    fn visit_struct_key<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    #[inline]
+    fn deserialize_struct_key<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
         let s = try!(self.read_string());
         visitor.visit_str(&s[..])
     }
+
+    #[inline]
+    fn deserialize_ignored_any<V>(&mut self, mut visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor,
+    {
+        let s = try!(self.read_string());
+        visitor.visit_str(&s[..])
+    }
+
 }
 
 struct SeqVisitor<'a> {
@@ -256,7 +269,6 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     fn visit_value<V>(&mut self) -> Result<V>
         where V: de::Deserialize,
     {
-        println!("visit_value!");
         let value = try!(serde::Deserialize::deserialize(self.de));
         Ok(value)
     }
