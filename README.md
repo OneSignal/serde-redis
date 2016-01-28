@@ -6,20 +6,25 @@ redis-serde
 [serde]: https://github.com/serde-rs/serde
 [redis-rs]: https://github.com/mitsuhiko/redis-rs
 
-**NOT READY FOR USE**
+## Status
+
+- Deserialization: Works
+- Serialization: Completely **unimplemented**
 
 ## Summary
 
 This crate gives you automatic deserialization of values returned from redis-rs.
 
 ```rust
+use redis_serde::from_redis_value;
+
 #[derive(Debug, Deserialize, PartialEq)]
 struct Simple {
     a: String,
     b: String,
 }
 
-let s : Simple = try!(redis_connection.hgetall("simple_hash"));
+let s: Simple = from_redis_value(try!(redis_connection.hgetall("simple_hash")));
 ```
 
 ## Future work
