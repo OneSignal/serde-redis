@@ -1,6 +1,8 @@
 redis-serde
 ===========
 
+[![Build Status](https://travis-ci.org/one-signal/redis-serde.svg?branch=master)](https://travis-ci.org/one-signal/redis-serde)
+
 [serde][] serialization and deserialization of [redis-rs][] values
 
 [serde]: https://github.com/serde-rs/serde
