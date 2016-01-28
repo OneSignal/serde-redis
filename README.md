@@ -28,7 +28,7 @@ struct Simple {
     b: String,
 }
 
-let s: Simple = from_redis_value(try!(redis_connection.hgetall("simple_hash")));
+let s: Simple = try!(from_redis_value(try!(redis.hgetall("simple_hash"))));
 ```
 
 ## Future work
