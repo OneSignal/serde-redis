@@ -174,7 +174,7 @@ fn deserialize_struct_extra_keys() {
 }
 
 #[test]
-fn deserialize_option() {
+fn deserialize_enum() {
     let v = Value::Data(b"Orange".to_vec());
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -187,4 +187,41 @@ fn deserialize_option() {
     let actual: Fruit = Deserialize::deserialize(&mut de).unwrap();
 
     assert_eq!(Fruit::Orange, actual);
+}
+
+#[test]
+fn deserialize_option() {
+    let mut de = Deserializer::new(Value::Nil).unwrap();
+    let actual: Option<u8> = Deserialize::deserialize(&mut de).unwrap();
+
+    assert_eq!(None, actual);
+}
+
+#[test]
+fn deserialize_complex_struct() {
+    let v = vec![
+        Value::Data(b"num".to_vec()), Value::Data(b"10".to_vec()),
+        Value::Data(b"opt".to_vec()), Value::Data(b"yes".to_vec()),
+        Value::Data(b"s".to_vec()), Value::Data(b"yarn".to_vec()),
+    ];
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Complex {
+        num: usize,
+        opt: Option<String>,
+        not: Option<String>,
+        s: String,
+    }
+
+    let expected = Complex {
+        num: 10,
+        opt: Some("yes".to_owned()),
+        not: None,
+        s: "yarn".to_owned()
+    };
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Complex = Deserialize::deserialize(&mut de).unwrap();
+
+    assert_eq!(expected, actual);
 }

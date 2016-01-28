@@ -229,6 +229,32 @@ impl serde::Deserializer for Deserializer {
         visitor.visit(VariantVisitor { de: self })
     }
 
+    #[inline]
+    fn deserialize_option<V>(&mut self, mut visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor
+    {
+        let maybe = match self.peek() {
+            Some(v) => {
+                match *v {
+                    Value::Data(_) => Some(()),
+                    Value::Int(_) => Some(()),
+                    Value::Nil => None,
+                    _ => {
+                        let msg = format!("Expected Data, Int, or Nil");
+                        return Err(Error::wrong_value(msg));
+                    }
+                }
+            },
+            None => None,
+        };
+
+        if maybe.is_some() {
+            visitor.visit_some(self)
+        } else {
+            visitor.visit_none()
+        }
+    }
+
 }
 
 struct SeqVisitor<'a> {
@@ -276,16 +302,25 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
         }
     }
 
+    #[inline]
     fn visit_value<V>(&mut self) -> Result<V>
         where V: de::Deserialize,
     {
-        let value = try!(serde::Deserialize::deserialize(self.de));
-        Ok(value)
+        serde::Deserialize::deserialize(self.de)
     }
 
+    #[inline]
     fn end(&mut self) -> Result<()> {
         // ignore any unused values since keys can randomly be added in Redis
         Ok(())
+    }
+
+    fn missing_field<V>(&mut self, _field: &'static str) -> Result<V>
+        where V: de::Deserialize,
+    {
+
+        let mut de = de::value::ValueDeserializer::into_deserializer(());
+        de::Deserialize::deserialize(&mut de)
     }
 }
 
