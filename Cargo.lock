@@ -3,8 +3,8 @@ name = "redis-serde"
 version = "0.1.0"
 dependencies = [
  "redis 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_macros 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 0.6.11 (git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6)",
+ "serde_macros 0.6.11 (git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6)",
 ]
 
 [[package]]
@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "serde"
 version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6#b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6"
 dependencies = [
  "num 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -120,7 +120,7 @@ dependencies = [
 [[package]]
 name = "serde_codegen"
 version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6#b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6"
 dependencies = [
  "aster 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy 0.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -131,10 +131,10 @@ dependencies = [
 [[package]]
 name = "serde_macros"
 version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6#b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6"
 dependencies = [
  "clippy 0.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_codegen 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_codegen 0.6.11 (git+https://github.com/serde-rs/serde?rev=b3212f4c2bf91adc7767eabeb75cfc6369d4dcf6)",
 ]
 
 [[package]]

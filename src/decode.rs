@@ -118,6 +118,17 @@ impl Deserializer {
             None => Err(serde::de::Error::end_of_stream())
         }
     }
+
+    pub fn read_string(&mut self) -> Result<String> {
+        let redis_value = try!(self.next());
+        Ok(match redis_value {
+            Value::Data(bytes) => try!(String::from_utf8(bytes)),
+            _ => {
+                let msg = format!("Expected Data, got {:?}", &redis_value);
+                return Err(Error::wrong_value(msg));
+            }
+        })
+    }
 }
 
 macro_rules! impl_num {
@@ -157,15 +168,7 @@ impl serde::Deserializer for Deserializer {
     fn visit_string<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        let redis_value = try!(self.next());
-        let s = match redis_value {
-            Value::Data(bytes) => try!(String::from_utf8(bytes)),
-            _ => {
-                let msg = format!("Expected Data, got {:?}", &redis_value);
-                return Err(Error::wrong_value(msg));
-            }
-        };
-
+        let s = try!(self.read_string());
         visitor.visit_string(s)
     }
 
@@ -195,6 +198,13 @@ impl serde::Deserializer for Deserializer {
         where V: serde::de::Visitor,
     {
         visitor.visit_map(MapVisitor { de: self })
+    }
+
+    fn visit_struct_key<V>(&mut self, mut visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor,
+    {
+        let s = try!(self.read_string());
+        visitor.visit_str(&s[..])
     }
 }
 
@@ -235,7 +245,6 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     fn visit_key<K>(&mut self) -> Result<Option<K>>
         where K: de::Deserialize,
     {
-        println!("visit_key!");
         if self.de.peek().is_some() {
             let key = try!(serde::Deserialize::deserialize(self.de));
             Ok(Some(key))
