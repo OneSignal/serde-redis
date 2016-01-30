@@ -276,11 +276,7 @@ impl<'a> de::SeqVisitor for SeqVisitor<'a> {
     }
 
     fn end(&mut self) -> Result<()> {
-        if self.de.peek().is_none() {
-            Ok(())
-        } else {
-            Err(serde::de::Error::syntax("expected end"))
-        }
+        Ok(())
     }
 }
 

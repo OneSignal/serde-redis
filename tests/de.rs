@@ -225,3 +225,41 @@ fn deserialize_complex_struct() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn deserialize_vec_of_strings() {
+    let v = vec![
+        Value::Data(b"first".to_vec()),
+        Value::Data(b"second".to_vec()),
+        Value::Data(b"third".to_vec()),
+    ];
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Vec<String> = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = vec!["first".to_string(), "second".to_string(), "third".to_string()];
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_vec_of_newtype() {
+    let v = vec![
+        Value::Data(b"first".to_vec()),
+        Value::Data(b"second".to_vec()),
+        Value::Data(b"third".to_vec()),
+    ];
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    struct Rank(String);
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Vec<Rank> = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = vec![
+        Rank("first".into()),
+        Rank("second".into()),
+        Rank("third".into()),
+    ];
+
+    assert_eq!(expected, actual);
+}
