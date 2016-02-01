@@ -263,3 +263,42 @@ fn deserialize_vec_of_newtype() {
 
     assert_eq!(expected, actual);
 }
+
+/// Test for deserializing pipelined structs
+///
+/// In pipeline mode, there is nested bulk items that are returned. The original implementation did
+/// not handle this.
+#[test]
+fn deserialize_pipelined_hmap() {
+    let values =
+        Value::Bulk(vec![
+            Value::Bulk(vec![
+                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
+            ]),
+            Value::Bulk(vec![
+                Value::Data(b"a".to_vec()), Value::Data(b"art".to_vec()),
+                Value::Data(b"b".to_vec()), Value::Data(b"bold".to_vec())
+            ])
+        ]);
+
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: String,
+        b: String,
+    }
+
+    let mut de = Deserializer::new(values).unwrap();
+    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = vec![Simple {
+        a: "apple".to_owned(),
+        b: "banana".to_owned(),
+    }, Simple {
+        a: "art".to_owned(),
+        b: "bold".to_owned(),
+    }];
+
+    assert_eq!(expected, actual);
+}

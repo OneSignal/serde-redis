@@ -86,7 +86,9 @@ impl From<num::ParseFloatError> for Error {
 /// deserializes Redis `Value`s
 #[derive(Debug)]
 pub struct Deserializer {
-    redis_values: Vec<Value>,
+    root_values: Vec<Value>,
+    nested_values: Vec<Value>,
+    processing_nested_values: bool
 }
 
 impl Deserializer {
@@ -104,19 +106,74 @@ impl Deserializer {
         values.reverse();
 
         Ok(Deserializer {
-            redis_values: values,
+            root_values: values,
+            nested_values: Vec::new(),
+            processing_nested_values: false
         })
     }
 
-    pub fn peek(&mut self) -> Option<&Value> {
-        self.redis_values.last()
+    /// Returns a reference to the next value
+    ///
+    /// Some qualification is required on "next value". If processing a subsequence (eg a hashmap
+    /// returned in a pipeline), and the subsequence has come to an end, None will be returned even
+    /// though the pipeline itself has additional data. This signals to the current visitor that
+    /// there are no more values for it. The sequence visitor will continue using the pipeline data.
+    pub fn peek(&self) -> Option<&Value> {
+        if self.processing_nested_values {
+            self.nested_values.last()
+        } else {
+            self.root_values.last()
+        }
     }
 
+    /// Return the next value
+    ///
+    /// See the qualification in the `peek` documentation as to the meaning of "next value".
+    ///
+    /// Unlike peek, this function will continue iterating on values. A value will be returned as
+    /// long as the current subsequence or root sequence still has Values.
     pub fn next(&mut self) -> Result<Value> {
-        match self.redis_values.pop() {
-            Some(v) => Ok(v),
+        // Work in the nested set if it's available
+        if self.nested_values.len() != 0 {
+            return match self.nested_values.pop() {
+                Some(v) =>  Ok(v),
+                None => Err(serde::de::Error::end_of_stream())
+            };
+        }
+
+        // Otherwise, pop off the main list. If it's a bulk value, it becomes the new nested list,
+        // and a value is returned from there.
+        match self.root_values.pop() {
+            Some(v) => {
+                match v {
+                    Value::Bulk(vals) => {
+                        // descend into subsequence
+                        self.set_subsequence(vals);
+                        self.next()
+                    },
+                    _ => {
+                        // Not processing nested values if this branch is reached.
+                        self.processing_nested_values = false;
+                        Ok(v)
+                    }
+                }
+            },
             None => Err(serde::de::Error::end_of_stream())
         }
+    }
+
+    /// Sets a new subsequence
+    fn set_subsequence(&mut self, mut values: Vec<Value>) {
+        values.reverse();
+        self.nested_values = values;
+        self.processing_nested_values = true;
+    }
+
+    /// Notify that current bulk item has been completed (eg map, sequence)
+    ///
+    /// Visitors use this to update the deserializer state.
+    pub fn completed_set(&mut self) {
+        self.processing_nested_values = false;
     }
 
     pub fn read_string(&mut self) -> Result<String> {
@@ -276,6 +333,7 @@ impl<'a> de::SeqVisitor for SeqVisitor<'a> {
     }
 
     fn end(&mut self) -> Result<()> {
+        self.de.completed_set();
         Ok(())
     }
 }
@@ -308,6 +366,7 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     #[inline]
     fn end(&mut self) -> Result<()> {
         // ignore any unused values since keys can randomly be added in Redis
+        self.de.completed_set();
         Ok(())
     }
 
