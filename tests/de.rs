@@ -302,3 +302,31 @@ fn deserialize_pipelined_hmap() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn deserialize_pipelined_single_hmap() {
+    let values =
+        Value::Bulk(vec![
+            Value::Bulk(vec![
+                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
+            ]),
+        ]);
+
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: String,
+        b: String,
+    }
+
+    let mut de = Deserializer::new(values).unwrap();
+    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = vec![Simple {
+        a: "apple".to_owned(),
+        b: "banana".to_owned(),
+    }];
+
+    assert_eq!(expected, actual);
+}
