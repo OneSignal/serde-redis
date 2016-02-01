@@ -33,17 +33,42 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl error::Error for Error {
     fn description(&self) -> &str {
-        unimplemented!();
+        match *self {
+            Error::Syntax(_) => "syntax error when decoding redis values",
+            Error::EndOfStream => "end of redis value stream",
+            Error::UnknownField(_) => "unknown field",
+            Error::MissingField(_) => "missing field",
+            Error::DeserializeNotSupported => "unsupported deserialization operation",
+            Error::WrongValue(_) => "expected value of different type",
+            Error::FromUtf8(ref err) => err.description(),
+            Error::ParseInt(ref err) => err.description(),
+            Error::ParseFloat(ref err) => err.description(),
+        }
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        unimplemented!();
+        match *self {
+            Error::FromUtf8(ref err) => Some(err),
+            Error::ParseInt(ref err) => Some(err),
+            Error::ParseFloat(ref err) => Some(err),
+            _ => None,
+        }
     }
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, _fmt: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!();
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::Syntax(ref reason) => write!(f, "SyntaxError({})", reason),
+            Error::EndOfStream => write!(f, "Reached end of stream"),
+            Error::UnknownField(ref field) => write!(f, "got unexpected field: {}", field),
+            Error::MissingField(ref field) => write!(f, "missing field: {}", field),
+            Error::DeserializeNotSupported => write!(f, "Deserialization option not supported"),
+            Error::WrongValue(ref value_type) => write!(f, "Got unexpected value: {}", value_type),
+            Error::FromUtf8(ref e) => write!(f, "{}", e),
+            Error::ParseInt(ref e) => write!(f, "{}", e),
+            Error::ParseFloat(ref e) => write!(f, "{}", e),
+        }
     }
 }
 
