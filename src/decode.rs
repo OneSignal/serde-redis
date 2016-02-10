@@ -286,7 +286,7 @@ impl serde::Deserializer for Deserializer {
     }
 
     #[inline]
-    fn deserialize_struct_key<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_struct_field<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
         let s = try!(self.read_string());
