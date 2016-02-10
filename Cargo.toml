@@ -5,11 +5,5 @@ authors = ["Joe Wilm <joe@jwilm.com>"]
 
 [dependencies]
 redis = "0.5"
-
-[dependencies.serde]
-git = "https://github.com/jwilm/serde"
-rev = "b0bc8e35946d5937f9af73804518a7ac8b5bf7ae"
-
-[dependencies.serde_macros]
-git = "https://github.com/jwilm/serde"
-rev = "b0bc8e35946d5937f9af73804518a7ac8b5bf7ae"
+serde = "0.6"
+serde_macros = "0.6"
