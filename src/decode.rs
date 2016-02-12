@@ -11,6 +11,7 @@ use serde::{self, de};
 #[derive(Debug)]
 pub enum Error {
     Syntax(String),
+    TypeMismatch(String),
     EndOfStream,
     UnknownField(String),
     MissingField(&'static str),
@@ -35,6 +36,7 @@ impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::Syntax(_) => "syntax error when decoding redis values",
+            Error::TypeMismatch(_) => "type mismatch when decoding redis values",
             Error::EndOfStream => "end of redis value stream",
             Error::UnknownField(_) => "unknown field",
             Error::MissingField(_) => "missing field",
@@ -60,6 +62,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::Syntax(ref reason) => write!(f, "SyntaxError({})", reason),
+            Error::TypeMismatch(ref t) => write!(f, "TypeMismatch(expected: {})", t),
             Error::EndOfStream => write!(f, "Reached end of stream"),
             Error::UnknownField(ref field) => write!(f, "got unexpected field: {}", field),
             Error::MissingField(ref field) => write!(f, "missing field: {}", field),
@@ -87,6 +90,10 @@ impl de::Error for Error {
 
     fn missing_field(field: &'static str) -> Error {
         Error::MissingField(field)
+    }
+
+    fn type_mismatch(t: ::serde::de::Type) -> Error {
+        Error::TypeMismatch(format!("{:?}", t))
     }
 }
 
