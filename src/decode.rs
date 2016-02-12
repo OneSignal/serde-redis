@@ -344,6 +344,14 @@ impl serde::Deserializer for Deserializer {
         }
     }
 
+    #[inline]
+    fn deserialize_newtype_struct<V>(&mut self,
+                                     _name: &'static str,
+                                     mut visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor
+    {
+        visitor.visit_newtype_struct(self)
+    }
 }
 
 struct SeqVisitor<'a> {
