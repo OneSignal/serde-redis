@@ -209,14 +209,14 @@ fn deserialize_complex_struct() {
     struct Complex {
         num: usize,
         opt: Option<String>,
-        not: Option<String>,
+        not_present: Option<String>,
         s: String,
     }
 
     let expected = Complex {
         num: 10,
         opt: Some("yes".to_owned()),
-        not: None,
+        not_present: None,
         s: "yarn".to_owned()
     };
 
@@ -326,6 +326,65 @@ fn deserialize_pipelined_single_hmap() {
     let expected = vec![Simple {
         a: "apple".to_owned(),
         b: "banana".to_owned(),
+    }];
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_struct_with_newtype_field() {
+    let v = vec![
+        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+    ];
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Fruit(String);
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: Fruit,
+        b: Fruit,
+    }
+
+    let mut de = Deserializer::new(Value::Bulk(v)).unwrap();
+    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = Simple {
+        a: Fruit(String::from("apple")),
+        b: Fruit(String::from("banana")),
+    };
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_pipelined_single_hmap_newtype_fields() {
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Fruit(String);
+
+    let values =
+        Value::Bulk(vec![
+            Value::Bulk(vec![
+                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
+            ]),
+        ]);
+
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: Fruit,
+        b: Fruit,
+    }
+
+    let mut de = Deserializer::new(values).unwrap();
+    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = vec![Simple {
+        a: Fruit(String::from("apple")),
+        b: Fruit(String::from("banana")),
     }];
 
     assert_eq!(expected, actual);
