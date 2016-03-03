@@ -4,14 +4,3 @@ sudo: false
 rust:
   # TODO feature flags. This is needed for tests right now.
   - nightly
-
-script:
-  - mkdir .cargo
-  - cp .travis.cargo_config .cargo/config
-  - mkdir deps
-  - |
-    git clone https://github.com/serde-rs/serde deps/serde
-    pushd deps/serde
-    git reset --hard origin/master
-    popd
-  - cargo test
