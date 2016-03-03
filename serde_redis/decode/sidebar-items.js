@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error","Error that can be produced during deserialization"]],"struct":[["Deserializer","deserializes Redis `Value`s"]],"type":[["Result",""]]});

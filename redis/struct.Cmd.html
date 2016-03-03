@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Cmd` struct in crate `redis`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Cmd">
+
+    <title>redis::Cmd - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>redis</a></p><script>window.sidebarCurrent = {name: 'Cmd', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>redis</a>::<wbr><a class='struct' href=''>Cmd</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-2730' class='srclink' href='../src/redis/cmd.rs.html#15-19' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Cmd {
+    // some fields omitted
+}</pre><div class='docblock'><p>Represents redis commands.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h3><div class='docblock'><p>A command acts as a builder interface to creating encoded redis
+requests.  This allows you to easiy assemble a packed command
+by chaining arguments together.</p>
+
+<p>Basic example:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='ident'>redis</span>::<span class='ident'>Cmd</span>::<span class='ident'>new</span>().<span class='ident'>arg</span>(<span class='string'>&quot;SET&quot;</span>).<span class='ident'>arg</span>(<span class='string'>&quot;my_key&quot;</span>).<span class='ident'>arg</span>(<span class='number'>42</span>);</pre>
+
+<p>There is also a helper function called <code>cmd</code> which makes it a
+tiny bit shorter:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SET&quot;</span>).<span class='ident'>arg</span>(<span class='string'>&quot;my_key&quot;</span>).<span class='ident'>arg</span>(<span class='number'>42</span>);</pre>
+
+<p>Because currently rust&#39;s currently does not have an ideal system
+for lifetimes of temporaries, sometimes you need to hold on to
+the initially generated command:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cmd</span> <span class='op'>=</span> <span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SMEMBERS&quot;</span>);
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iter</span> : <span class='ident'>redis</span>::<span class='ident'>Iter</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>cmd</span>.<span class='ident'>arg</span>(<span class='string'>&quot;my_set&quot;</span>).<span class='ident'>iter</span>(<span class='kw-2'>&amp;</span><span class='ident'>con</span>).<span class='ident'>unwrap</span>();</pre>
+</div><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h4>
+<div class='docblock'><p>Creates a new empty command.</p>
+</div><h4 id='method.arg' class='method'><code>fn <a href='#method.arg' class='fnname'>arg</a>&lt;T: <a class='trait' href='../redis/trait.ToRedisArgs.html' title='redis::ToRedisArgs'>ToRedisArgs</a>&gt;(&amp;mut self, arg: T) -&gt; &amp;mut <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h4>
+<div class='docblock'><p>Appends an argument to the command.  The argument passed must
+be a type that implements <code>ToRedisArgs</code>.  Most primitive types as
+well as vectors of primitive types implement it.</p>
+
+<p>For instance all of the following are valid:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SET&quot;</span>).<span class='ident'>arg</span>(<span class='kw-2'>&amp;</span>[<span class='string'>&quot;my_key&quot;</span>, <span class='string'>&quot;my_value&quot;</span>]);
+<span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SET&quot;</span>).<span class='ident'>arg</span>(<span class='string'>&quot;my_key&quot;</span>).<span class='ident'>arg</span>(<span class='number'>42</span>);
+<span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SET&quot;</span>).<span class='ident'>arg</span>(<span class='string'>&quot;my_key&quot;</span>).<span class='ident'>arg</span>(<span class='string'>b&quot;my_value&quot;</span>);</pre>
+</div><h4 id='method.cursor_arg' class='method'><code>fn <a href='#method.cursor_arg' class='fnname'>cursor_arg</a>(&amp;mut self, cursor: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; &amp;mut <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h4>
+<div class='docblock'><p>Works similar to <code>arg</code> but adds a cursor argument.  This is always
+an integer and also flips the command implementation to support a
+different mode for the iterators where the iterator will ask for
+another batch of items when the local data is exhausted.</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cmd</span> <span class='op'>=</span> <span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;SSCAN&quot;</span>);
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iter</span> : <span class='ident'>redis</span>::<span class='ident'>Iter</span><span class='op'>&lt;</span><span class='ident'>isize</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>cmd</span>.<span class='ident'>arg</span>(<span class='string'>&quot;my_set&quot;</span>).<span class='ident'>cursor_arg</span>(<span class='number'>0</span>).<span class='ident'>iter</span>(<span class='kw-2'>&amp;</span><span class='ident'>con</span>).<span class='ident'>unwrap</span>();
+<span class='kw'>for</span> <span class='ident'>x</span> <span class='kw'>in</span> <span class='ident'>iter</span> {
+    <span class='comment'>// do something with the item</span>
+}</pre>
+</div><h4 id='method.get_packed_command' class='method'><code>fn <a href='#method.get_packed_command' class='fnname'>get_packed_command</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;</code></h4>
+<div class='docblock'><p>Returns the packed command as a byte vector.</p>
+</div><h4 id='method.in_scan_mode' class='method'><code>fn <a href='#method.in_scan_mode' class='fnname'>in_scan_mode</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>Returns true if the command is in scan mode.</p>
+</div><h4 id='method.query' class='method'><code>fn <a href='#method.query' class='fnname'>query</a>&lt;T: <a class='trait' href='../redis/trait.FromRedisValue.html' title='redis::FromRedisValue'>FromRedisValue</a>&gt;(&amp;self, con: &amp;<a class='trait' href='../redis/trait.ConnectionLike.html' title='redis::ConnectionLike'>ConnectionLike</a>) -&gt; <a class='type' href='../redis/type.RedisResult.html' title='redis::RedisResult'>RedisResult</a>&lt;T&gt;</code></h4>
+<div class='docblock'><p>Sends the command as query to the connection and converts the
+result to the target redis value.  This is the general way how
+you can retrieve data.</p>
+</div><h4 id='method.iter' class='method'><code>fn <a href='#method.iter' class='fnname'>iter</a>&lt;'a, T: <a class='trait' href='../redis/trait.FromRedisValue.html' title='redis::FromRedisValue'>FromRedisValue</a>&gt;(&amp;self, con: &amp;'a <a class='trait' href='../redis/trait.ConnectionLike.html' title='redis::ConnectionLike'>ConnectionLike</a>) -&gt; <a class='type' href='../redis/type.RedisResult.html' title='redis::RedisResult'>RedisResult</a>&lt;<a class='struct' href='../redis/struct.Iter.html' title='redis::Iter'>Iter</a>&lt;'a, T&gt;&gt;</code></h4>
+<div class='docblock'><p>Similar to <code>query()</code> but returns an iterator over the items of the
+bulk result or iterator.  In normal mode this is not in any way more
+efficient than just querying into a <code>Vec&lt;T&gt;</code> as it&#39;s internally
+implemented as buffering into a vector.  This however is useful when
+<code>cursor_arg</code> was used in which case the iterator will query for more
+items until the server side cursor is exhausted.</p>
+
+<p>This is useful for commands such as <code>SSCAN</code>, <code>SCAN</code> and others.</p>
+
+<p>One speciality of this function is that it will check if the response
+looks like a cursor or not and always just looks at the payload.
+This way you can use the function the same for responses in the
+format of <code>KEYS</code> (just a list) as well as <code>SSCAN</code> (which returns a
+tuple of cursor and list).</p>
+</div><h4 id='method.execute' class='method'><code>fn <a href='#method.execute' class='fnname'>execute</a>(&amp;self, con: &amp;<a class='trait' href='../redis/trait.ConnectionLike.html' title='redis::ConnectionLike'>ConnectionLike</a>)</code></h4>
+<div class='docblock'><p>This is a shortcut to <code>query()</code> that does not return a value and
+will fail the task if the query fails because of an error.  This is
+mainly useful in examples and for simple commands like setting
+keys.</p>
+
+<p>This is equivalent to a call of query like this:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> _ : () <span class='op'>=</span> <span class='ident'>redis</span>::<span class='ident'>cmd</span>(<span class='string'>&quot;PING&quot;</span>).<span class='ident'>query</span>(<span class='kw-2'>&amp;</span><span class='ident'>con</span>).<span class='ident'>unwrap</span>();</pre>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h3><div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../redis/struct.Cmd.html' title='redis::Cmd'>Cmd</a></code></h4>
+<h4 id='method.clone_from' class='method'><span class="since">1.0.0</span><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "redis";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
