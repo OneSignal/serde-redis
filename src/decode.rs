@@ -10,7 +10,7 @@ use serde::{self, de};
 /// Error that can be produced during deserialization
 #[derive(Debug)]
 pub enum Error {
-    Syntax(String),
+    Custom(String),
     TypeMismatch(String),
     EndOfStream,
     UnknownField(String),
@@ -35,7 +35,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::Syntax(_) => "syntax error when decoding redis values",
+            Error::Custom(_) => "custom error when decoding redis values",
             Error::TypeMismatch(_) => "type mismatch when decoding redis values",
             Error::EndOfStream => "end of redis value stream",
             Error::UnknownField(_) => "unknown field",
@@ -61,7 +61,7 @@ impl error::Error for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::Syntax(ref reason) => write!(f, "SyntaxError({})", reason),
+            Error::Custom(ref reason) => write!(f, "CustomError({})", reason),
             Error::TypeMismatch(ref t) => write!(f, "TypeMismatch(expected: {})", t),
             Error::EndOfStream => write!(f, "Reached end of stream"),
             Error::UnknownField(ref field) => write!(f, "got unexpected field: {}", field),
@@ -76,12 +76,29 @@ impl fmt::Display for Error {
 }
 
 impl de::Error for Error {
-    fn syntax(desc: &str) -> Error {
-        Error::Syntax(desc.into())
+    /// Raised when there is general error when deserializing a type.
+    fn custom<T: Into<String>>(msg: T) -> Self {
+        Error::Custom(msg.into())
     }
 
-    fn end_of_stream() -> Error {
+    /// Raised when a `Deserialize` type unexpectedly hit the end of the stream.
+    fn end_of_stream() -> Self {
         Error::EndOfStream
+    }
+
+    /// Raised when a `Deserialize` was passed an incorrect value.
+    fn invalid_value(msg: &str) -> Self {
+        Error::custom(format!("Invalid value: {}", msg))
+    }
+
+    /// Raised when a fixed sized sequence or map was passed in the wrong amount of arguments.
+    fn invalid_length(len: usize) -> Self {
+        Error::custom(format!("Invalid length: {}", len))
+    }
+
+    /// Raised when a `Deserialize` enum type received an unexpected variant.
+    fn unknown_variant(field: &str) -> Self {
+        Error::custom(format!("Unknown variant `{}`", field))
     }
 
     fn unknown_field(field: &str) -> Error {
@@ -92,7 +109,7 @@ impl de::Error for Error {
         Error::MissingField(field)
     }
 
-    fn type_mismatch(t: ::serde::de::Type) -> Error {
+    fn invalid_type(t: ::serde::de::Type) -> Error {
         Error::TypeMismatch(format!("{:?}", t))
     }
 }
@@ -440,7 +457,7 @@ impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
     fn visit_newtype<T>(&mut self) -> Result<T>
         where T: serde::de::Deserialize,
     {
-        Err(de::Error::syntax("newtype variants are not supported"))
+        Err(de::Error::custom("newtype variants are not supported"))
     }
 
     fn visit_tuple<V>(&mut self,
@@ -448,7 +465,7 @@ impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
                       _visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        Err(de::Error::syntax("tuple variants are not supported"))
+        Err(de::Error::custom("tuple variants are not supported"))
     }
 
     fn visit_struct<V>(&mut self,
@@ -456,7 +473,7 @@ impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
                        _visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        Err(de::Error::syntax("struct variants are not supported"))
+        Err(de::Error::custom("struct variants are not supported"))
     }
 }
 
