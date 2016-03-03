@@ -20,7 +20,7 @@ Currently **relies on fork of serde**
 This crate gives you automatic deserialization of values returned from redis-rs.
 
 ```rust
-use redis_serde::from_redis_value;
+use serde_redis::from_redis_value;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Simple {
