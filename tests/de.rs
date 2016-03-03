@@ -1,14 +1,15 @@
 #![feature(custom_derive, plugin)]
 #![plugin(serde_macros)]
 
-extern crate serde;
 extern crate redis;
-extern crate redis_serde;
+
+extern crate serde;
+extern crate serde_redis;
 
 use std::collections::HashMap;
 
 use serde::Deserialize;
-use redis_serde::Deserializer;
+use serde_redis::Deserializer;
 
 use redis::Value;
 
