@@ -265,10 +265,11 @@ impl serde::Deserializer for Deserializer {
     type Error = Error;
 
     #[inline]
-    fn deserialize<V>(&mut self, _visitor: V) -> Result<V::Value>
+    fn deserialize<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        Err(Error::DeserializeNotSupported)
+        let s = try!(self.read_string());
+        visitor.visit_str(&s[..])
     }
 
     #[inline]
