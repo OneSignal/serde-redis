@@ -390,3 +390,33 @@ fn deserialize_pipelined_single_hmap_newtype_fields() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+fn deserialize_skip_empty_string_for_options() {
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct Fruit {
+        name: String,
+        color: String,
+        count: Option<i32>,
+        taste: String,
+    }
+
+    let values = Value::Bulk(vec![
+        Value::Data(b"name".to_vec()), Value::Data(b"Apple".to_vec()),
+        Value::Data(b"count".to_vec()), Value::Data(b"".to_vec()),
+        Value::Data(b"color".to_vec()), Value::Data(b"Red".to_vec()),
+        Value::Data(b"taste".to_vec()), Value::Data(b"Mmmmmm".to_vec()),
+    ]);
+
+    let mut de = Deserializer::new(values).unwrap();
+    let actual: Fruit = Deserialize::deserialize(&mut de).unwrap();
+
+    let expected = Fruit {
+        name: String::from("Apple"),
+        count: None,
+        taste: String::from("Mmmmmm"),
+        color: String::from("Red"),
+    };
+
+    assert_eq!(expected, actual);
+}

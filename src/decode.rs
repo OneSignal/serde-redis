@@ -185,7 +185,9 @@ impl Deserializer {
         // Work in the nested set if it's available
         if self.nested_values.len() != 0 {
             return match self.nested_values.pop() {
-                Some(v) =>  Ok(v),
+                Some(v) =>  {
+                    Ok(v)
+                } ,
                 None => Err(serde::de::Error::end_of_stream())
             };
         }
@@ -406,11 +408,20 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     fn visit_key<K>(&mut self) -> Result<Option<K>>
         where K: de::Deserialize,
     {
-        if self.de.peek().is_some() {
-            let key = try!(serde::Deserialize::deserialize(self.de));
-            Ok(Some(key))
-        } else {
-            Ok(None)
+        loop {
+            if self.de.peek().is_some() {
+                let key = try!(serde::Deserialize::deserialize(self.de));
+
+                if self.de.peek() == Some(&Value::Data(b"".to_vec())) {
+                    // Empty string value, don't do anything with it.
+                    self.de.next().ok();
+                    continue;
+                }
+
+                return Ok(Some(key));
+            } else {
+                return Ok(None);
+            }
         }
     }
 
