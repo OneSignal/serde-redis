@@ -1,6 +1,6 @@
 [package]
 name = "serde-redis"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Joe Wilm <joe@jwilm.com>"]
 description = "Serde deserialization for redis-rs"
 license = "MIT OR Apache-2.0"
@@ -9,6 +9,6 @@ repository = "https://github.com/one-signal/serde-redis"
 documentation = "https://one-signal.github.io/serde-redis/serde_redis/"
 
 [dependencies]
-redis = "0.5"
+redis = "0.6"
 serde = "0.7"
 serde_macros = "0.7"
