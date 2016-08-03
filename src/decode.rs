@@ -6,6 +6,7 @@ use std::num;
 use redis::Value;
 
 use serde::{self, de};
+use serde::de::Visitor;
 
 /// Error that can be produced during deserialization
 #[derive(Debug)]
@@ -263,6 +264,19 @@ macro_rules! impl_num {
     }
 }
 
+macro_rules! default_deserialize {
+    ($($name:ident)*) => {
+        $(
+            #[inline]
+            fn $name<V>(&mut self, visitor: V) -> Result<V::Value>
+                where V: serde::de::Visitor
+            {
+                self.deserialize(visitor)
+            }
+        )*
+    }
+}
+
 impl serde::Deserializer for Deserializer {
     type Error = Error;
 
@@ -297,19 +311,75 @@ impl serde::Deserializer for Deserializer {
     impl_num!(f32, deserialize_f32, visit_f32);
     impl_num!(f64, deserialize_f64, visit_f64);
 
+    default_deserialize!(
+        deserialize_str
+        deserialize_char
+        deserialize_bool
+        deserialize_unit
+    );
+
+    #[inline]
+    fn deserialize_bytes<V>(&mut self, visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    #[inline]
+    fn deserialize_tuple_struct<V>(&mut self,
+                                   _name: &'static str,
+                                   len: usize,
+                                   visitor: V) -> Result<V::Value>
+        where V: Visitor,
+    {
+        self.deserialize_tuple(len, visitor)
+    }
+
+    #[inline]
+    fn deserialize_tuple<V>(&mut self, _len: usize, visitor: V) -> Result<V::Value>
+        where V: Visitor,
+    {
+        self.deserialize_seq(visitor)
+    }
+
     #[inline]
     fn deserialize_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
-        where V: de::Visitor
+        where V: serde::de::Visitor
     {
         visitor.visit_seq(SeqVisitor { de: self })
     }
 
+    #[inline]
+    fn deserialize_seq_fixed_size<V>(&mut self, _len: usize, visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
 
     #[inline]
     fn deserialize_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
         visitor.visit_map(MapVisitor { de: self })
+    }
+
+    #[inline]
+    fn deserialize_unit_struct<V>(&mut self,
+                                  _name: &'static str,
+                                  visitor: V) -> Result<V::Value>
+        where V: Visitor,
+    {
+        self.deserialize_unit(visitor)
+    }
+
+    #[inline]
+    fn deserialize_struct<V>(&mut self,
+                             _name: &'static str,
+                             _fields: &'static [&'static str],
+                             visitor: V) -> Result<V::Value>
+        where V: Visitor,
+    {
+        self.deserialize_map(visitor)
     }
 
     #[inline]
