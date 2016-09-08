@@ -1,7 +1,9 @@
 use std::error;
 use std::fmt;
-use std::string;
+use std::iter::Peekable;
 use std::num;
+use std::string;
+use std::vec;
 
 use redis::Value;
 
@@ -134,98 +136,66 @@ impl From<num::ParseFloatError> for Error {
 }
 
 /// deserializes Redis `Value`s
+///
+/// Deserializes a sequence of redis values. In the case of a Bulk value (eg, a
+/// nested list), another deserializer is created for that sequence. The limit
+/// to nested sequences is proportional to the maximum stack depth in current
+/// machine.
+///
+/// If creating a Deserializer manually (ie not using `from_redis_value()`), the redis values must
+/// first be placed in a Vec.
 #[derive(Debug)]
 pub struct Deserializer {
-    root_values: Vec<Value>,
-    nested_values: Vec<Value>,
-    processing_nested_values: bool
+    values: Peekable<vec::IntoIter<Value>>,
+}
+
+pub trait IntoValueVec {
+    fn into_value_vec(self) -> Vec<Value>;
+}
+
+impl IntoValueVec for Value {
+    #[inline]
+    fn into_value_vec(self) -> Vec<Value> {
+        vec![self]
+    }
+}
+
+impl IntoValueVec for Vec<Value> {
+    #[inline]
+    fn into_value_vec(self) -> Vec<Value> {
+        self
+    }
 }
 
 impl Deserializer {
-    pub fn new(redis_value: Value) -> Result<Deserializer> {
-        let mut values = match redis_value {
-            Value::Data(bytes) => vec![Value::Data(bytes)],
-            Value::Bulk(bulk) => bulk,
-            Value::Int(i) => vec![Value::Int(i)],
-            Value::Nil => vec![Value::Nil],
-            _ => return Err(Error::wrong_value("must be a redis value type"))
-        };
-
-        // TODO: would be better to turn this into an iterator than have to reverse and use the
-        // vector.
-        values.reverse();
-
+    pub fn new<V>(values: V) -> Result<Deserializer>
+        where V: IntoValueVec
+    {
         Ok(Deserializer {
-            root_values: values,
-            nested_values: Vec::new(),
-            processing_nested_values: false
+            values: values.into_value_vec().into_iter().peekable(),
         })
     }
 
     /// Returns a reference to the next value
-    ///
-    /// Some qualification is required on "next value". If processing a subsequence (eg a hashmap
-    /// returned in a pipeline), and the subsequence has come to an end, None will be returned even
-    /// though the pipeline itself has additional data. This signals to the current visitor that
-    /// there are no more values for it. The sequence visitor will continue using the pipeline data.
-    pub fn peek(&self) -> Option<&Value> {
-        if self.processing_nested_values {
-            self.nested_values.last()
-        } else {
-            self.root_values.last()
-        }
+    #[inline]
+    pub fn peek(&mut self) -> Option<&Value> {
+        self.values.peek()
     }
 
     /// Return the next value
-    ///
-    /// See the qualification in the `peek` documentation as to the meaning of "next value".
-    ///
-    /// Unlike peek, this function will continue iterating on values. A value will be returned as
-    /// long as the current subsequence or root sequence still has Values.
+    #[inline]
     pub fn next(&mut self) -> Result<Value> {
-        // Work in the nested set if it's available
-        if self.nested_values.len() != 0 {
-            return match self.nested_values.pop() {
-                Some(v) =>  {
-                    Ok(v)
-                } ,
-                None => Err(serde::de::Error::end_of_stream())
-            };
-        }
-
-        // Otherwise, pop off the main list. If it's a bulk value, it becomes the new nested list,
-        // and a value is returned from there.
-        match self.root_values.pop() {
-            Some(v) => {
-                match v {
-                    Value::Bulk(vals) => {
-                        // descend into subsequence
-                        self.set_subsequence(vals);
-                        self.next()
-                    },
-                    _ => {
-                        // Not processing nested values if this branch is reached.
-                        self.processing_nested_values = false;
-                        Ok(v)
-                    }
-                }
-            },
+        match self.values.next() {
+            Some(value) => Ok(value),
             None => Err(serde::de::Error::end_of_stream())
         }
     }
 
-    /// Sets a new subsequence
-    fn set_subsequence(&mut self, mut values: Vec<Value>) {
-        values.reverse();
-        self.nested_values = values;
-        self.processing_nested_values = true;
-    }
-
-    /// Notify that current bulk item has been completed (eg map, sequence)
-    ///
-    /// Visitors use this to update the deserializer state.
-    pub fn completed_set(&mut self) {
-        self.processing_nested_values = false;
+    pub fn next_bulk(&mut self) -> Result<Vec<Value>> {
+        match try!(self.next()) {
+            Value::Bulk(values) => Ok(values),
+            v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v)))
+        }
     }
 
     pub fn read_string(&mut self) -> Result<String> {
@@ -246,6 +216,7 @@ macro_rules! impl_num {
         fn $deserialize_method<V>(&mut self, mut visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor,
         {
+
             let redis_value = try!(self.next());
             let value = match redis_value {
                 Value::Data(bytes) => {
@@ -346,7 +317,9 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
-        visitor.visit_seq(SeqVisitor { de: self })
+        let values = try!(self.next_bulk());
+        let mut de = try!(Deserializer::new(values));
+        visitor.visit_seq(SeqVisitor { de: &mut de })
     }
 
     #[inline]
@@ -360,7 +333,9 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        visitor.visit_map(MapVisitor { de: self })
+        let values = try!(self.next_bulk());
+        let mut de = try!(Deserializer::new(values));
+        visitor.visit_map(MapVisitor { de: &mut de })
     }
 
     #[inline]
@@ -463,7 +438,6 @@ impl<'a> de::SeqVisitor for SeqVisitor<'a> {
     }
 
     fn end(&mut self) -> Result<()> {
-        self.de.completed_set();
         Ok(())
     }
 }
@@ -505,7 +479,6 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     #[inline]
     fn end(&mut self) -> Result<()> {
         // ignore any unused values since keys can randomly be added in Redis
-        self.de.completed_set();
         Ok(())
     }
 

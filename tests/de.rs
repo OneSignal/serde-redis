@@ -420,3 +420,37 @@ fn deserialize_skip_empty_string_for_options() {
 
     assert_eq!(expected, actual);
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Details {
+    pub time: i64,
+    pub count: u32,
+    pub ids: Vec<String>,
+}
+
+type MapMapList = ::std::collections::HashMap<String, Details>;
+
+#[test]
+fn deserialize_nested_map_map_list() {
+    let value = Value::Bulk(vec![
+        Value::Data(b"key".to_vec()), Value::Bulk(vec![
+            Value::Data(b"count".to_vec()), Value::Data(b"4".to_vec()),
+            Value::Data(b"time".to_vec()), Value::Data(b"1473359995".to_vec()),
+            Value::Data(b"ids".to_vec()), Value::Bulk(vec![
+                Value::Data(b"00000000-0000-0000-0000-000000000000".to_vec()),
+                Value::Data(b"00000000-0000-0000-0000-000000000001".to_vec()),
+                Value::Data(b"00000000-0000-0000-0000-000000000002".to_vec()),
+            ])
+        ])
+    ]);
+
+    let mut de = Deserializer::new(value).unwrap();
+    let map: MapMapList = Deserialize::deserialize(&mut de).unwrap();
+
+    let nest = map.get("key").unwrap();
+    assert_eq!(nest.count, 4);
+    assert_eq!(nest.time, 1473359995);
+    assert_eq!(&nest.ids[..], &[String::from("00000000-0000-0000-0000-000000000000"),
+                                String::from("00000000-0000-0000-0000-000000000001"),
+                                String::from("00000000-0000-0000-0000-000000000002")]);
+}

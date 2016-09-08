@@ -1,6 +1,6 @@
 [package]
 name = "serde-redis"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Joe Wilm <joe@jwilm.com>"]
 description = "Serde deserialization for redis-rs"
 license = "MIT OR Apache-2.0"
