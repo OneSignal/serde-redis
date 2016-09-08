@@ -2,6 +2,7 @@ redis-serde
 ===========
 
 [![Build Status](https://travis-ci.org/OneSignal/serde-redis.svg?branch=master)](https://travis-ci.org/OneSignal/serde-redis)
+[![Documentation](https://docs.rs/serde-redis/badge.svg)](https://docs.rs/crate/serde-redis/)
 
 [serde][] serialization and deserialization of [redis-rs][] values
 
