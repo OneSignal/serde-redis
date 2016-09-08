@@ -3,6 +3,8 @@ redis-serde
 
 [![Build Status](https://travis-ci.org/OneSignal/serde-redis.svg?branch=master)](https://travis-ci.org/OneSignal/serde-redis)
 [![Documentation](https://docs.rs/serde-redis/badge.svg)](https://docs.rs/crate/serde-redis/)
+[![Crates.io Version](https://img.shields.io/crates/v/serde-redis.svg)](https://crates.io/crates/serde-redis/)
+
 
 [serde][] serialization and deserialization of [redis-rs][] values
 
