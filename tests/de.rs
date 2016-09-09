@@ -454,3 +454,12 @@ fn deserialize_nested_map_map_list() {
                                 String::from("00000000-0000-0000-0000-000000000001"),
                                 String::from("00000000-0000-0000-0000-000000000002")]);
 }
+
+#[test]
+#[should_panic]
+fn deserialize_nested_item() {
+    let value = Value::Bulk(vec![Value::Bulk(vec![Value::Data(b"hi".to_vec())])]);
+
+    let mut de = Deserializer::new(value).unwrap();
+    let _hellos: Vec<String> = Deserialize::deserialize(&mut de).unwrap();
+}
