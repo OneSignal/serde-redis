@@ -13,10 +13,8 @@ redis-serde
 
 ## Status
 
-Currently **relies on fork of serde**
-
-- Deserialization: Works
-- Serialization: Completely **unimplemented**
+- Deserialization: Everything _should_ work.
+- Serialization: **unimplemented**
 
 ## Summary
 
