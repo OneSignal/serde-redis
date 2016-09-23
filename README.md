@@ -21,7 +21,7 @@ redis-serde
 This crate gives you automatic deserialization of values returned from redis-rs.
 
 ```rust
-use serde_redis::from_redis_value;
+use serde_redis::RedisDeserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Simple {
@@ -29,7 +29,8 @@ struct Simple {
     b: String,
 }
 
-let s: Simple = try!(from_redis_value(try!(redis.hgetall("simple_hash"))));
+let s: Simple = redis.hgetall("simple_hash")?
+                     .deserialize()?;
 ```
 
 ## Future work

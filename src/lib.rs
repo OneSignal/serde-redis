@@ -13,14 +13,39 @@ pub use decode::Deserializer;
 pub fn from_redis_value<T>(rv: ::redis::Value) -> decode::Result<T>
     where T: serde::de::Deserialize
 {
-    let mut de = Deserializer::new(rv).unwrap();
+    let mut de = Deserializer::new(rv);
     ::serde::de::Deserialize::deserialize(&mut de)
+}
+
+pub trait RedisDeserialize<T>
+    where T: serde::de::Deserialize
+{
+    fn deserialize(self) -> decode::Result<T>;
+}
+
+impl<T> RedisDeserialize<T> for redis::Value
+    where T: serde::de::Deserialize
+{
+    fn deserialize(self) -> decode::Result<T> {
+        let mut de = Deserializer::new(self);
+        ::serde::de::Deserialize::deserialize(&mut de)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use redis::Value;
+
+    #[test]
+    fn chain_deserialize_works() {
+        let v = Value::Bulk(vec![Value::Int(5), Value::Data(b"hello".to_vec())]);
+
+        let actual: (u8, String) = v.deserialize().unwrap();
+        let expected = (5, "hello".into());
+
+        assert_eq!(expected, actual);
+    }
 
     #[test]
     fn from_redis_value_works() {

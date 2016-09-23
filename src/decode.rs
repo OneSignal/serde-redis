@@ -168,12 +168,12 @@ impl IntoValueVec for Vec<Value> {
 }
 
 impl Deserializer {
-    pub fn new<V>(values: V) -> Result<Deserializer>
+    pub fn new<V>(values: V) -> Deserializer
         where V: IntoValueVec
     {
-        Ok(Deserializer {
+        Deserializer {
             values: values.into_value_vec().into_iter().peekable(),
-        })
+        }
     }
 
     /// Returns a reference to the next value
@@ -318,7 +318,7 @@ impl serde::Deserializer for Deserializer {
         where V: serde::de::Visitor
     {
         let values = try!(self.next_bulk());
-        let mut de = try!(Deserializer::new(values));
+        let mut de = Deserializer::new(values);
         visitor.visit_seq(SeqVisitor { de: &mut de })
     }
 
@@ -334,7 +334,7 @@ impl serde::Deserializer for Deserializer {
         where V: serde::de::Visitor,
     {
         let values = try!(self.next_bulk());
-        let mut de = try!(Deserializer::new(values));
+        let mut de = Deserializer::new(values);
         visitor.visit_map(MapVisitor { de: &mut de })
     }
 
