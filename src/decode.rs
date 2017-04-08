@@ -192,16 +192,16 @@ impl Deserializer {
     }
 
     pub fn next_bulk(&mut self) -> Result<Vec<Value>> {
-        match try!(self.next()) {
+        match self.next()? {
             Value::Bulk(values) => Ok(values),
             v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v)))
         }
     }
 
     pub fn read_string(&mut self) -> Result<String> {
-        let redis_value = try!(self.next());
+        let redis_value = self.next()?;
         Ok(match redis_value {
-            Value::Data(bytes) => try!(String::from_utf8(bytes)),
+            Value::Data(bytes) => String::from_utf8(bytes)?,
             _ => {
                 let msg = format!("Expected Data, got {:?}", &redis_value);
                 return Err(Error::wrong_value(msg));
@@ -217,11 +217,11 @@ macro_rules! impl_num {
             where V: serde::de::Visitor,
         {
 
-            let redis_value = try!(self.next());
+            let redis_value = self.next()?;
             let value = match redis_value {
                 Value::Data(bytes) => {
-                    let s = try!(String::from_utf8(bytes));
-                    try!(s.parse::<$ty>())
+                    let s = String::from_utf8(bytes)?;
+                    s.parse::<$ty>()?
                 },
                 Value::Int(i) => i as $ty,
                 _ => {
@@ -255,7 +255,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
@@ -263,7 +263,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_string<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_string(s)
     }
 
@@ -317,7 +317,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
-        let values = try!(self.next_bulk());
+        let values = self.next_bulk()?;
         let mut de = Deserializer::new(values);
         visitor.visit_seq(SeqVisitor { de: &mut de })
     }
@@ -333,7 +333,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let values = try!(self.next_bulk());
+        let values = self.next_bulk()?;
         let mut de = Deserializer::new(values);
         visitor.visit_map(MapVisitor { de: &mut de })
     }
@@ -361,7 +361,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_struct_field<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
@@ -369,7 +369,7 @@ impl serde::Deserializer for Deserializer {
     fn deserialize_ignored_any<V>(&mut self, mut visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
@@ -430,7 +430,7 @@ impl<'a> de::SeqVisitor for SeqVisitor<'a> {
         where T: de::Deserialize
     {
         if self.de.peek().is_some() {
-            let value = try!(serde::Deserialize::deserialize(self.de));
+            let value = serde::Deserialize::deserialize(self.de)?;
             Ok(Some(value))
         } else {
             Ok(None)
@@ -454,7 +454,7 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     {
         loop {
             if self.de.peek().is_some() {
-                let key = try!(serde::Deserialize::deserialize(self.de));
+                let key = serde::Deserialize::deserialize(self.de)?;
 
                 if self.de.peek() == Some(&Value::Data(b"".to_vec())) {
                     // Empty string value, don't do anything with it.
@@ -501,7 +501,7 @@ impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
     fn visit_variant<V>(&mut self) -> Result<V>
         where V: serde::Deserialize,
     {
-        let value = try!(serde::Deserialize::deserialize(self.de));
+        let value = serde::Deserialize::deserialize(self.de)?;
         Ok(value)
     }
 
