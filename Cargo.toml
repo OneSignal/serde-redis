@@ -9,7 +9,7 @@ repository = "https://github.com/one-signal/serde-redis"
 documentation = "https://one-signal.github.io/serde-redis/serde_redis/"
 
 [dependencies]
-redis = "0.6"
+redis = "0.8"
 serde = "0.8"
 
 [dev-dependencies]
