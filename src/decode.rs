@@ -318,8 +318,7 @@ impl serde::Deserializer for Deserializer {
         where V: serde::de::Visitor
     {
         let values = self.next_bulk()?;
-        let mut de = Deserializer::new(values);
-        visitor.visit_seq(SeqVisitor { de: &mut de })
+        visitor.visit_seq(SeqVisitor { iter: values.into_iter() })
     }
 
     #[inline]
@@ -334,8 +333,7 @@ impl serde::Deserializer for Deserializer {
         where V: serde::de::Visitor,
     {
         let values = self.next_bulk()?;
-        let mut de = Deserializer::new(values);
-        visitor.visit_map(MapVisitor { de: &mut de })
+        visitor.visit_map(MapVisitor { iter: values.into_iter() })
     }
 
     #[inline]
@@ -419,21 +417,19 @@ impl serde::Deserializer for Deserializer {
     }
 }
 
-struct SeqVisitor<'a> {
-    de: &'a mut Deserializer,
+struct SeqVisitor {
+    iter: vec::IntoIter<Value>,
 }
 
-impl<'a> de::SeqVisitor for SeqVisitor<'a> {
+impl de::SeqVisitor for SeqVisitor {
     type Error = Error;
 
     fn visit<T>(&mut self) -> Result<Option<T>>
         where T: de::Deserialize
     {
-        if self.de.peek().is_some() {
-            let value = serde::Deserialize::deserialize(self.de)?;
-            Ok(Some(value))
-        } else {
-            Ok(None)
+        match self.iter.next() {
+            Some(v) => serde::Deserialize::deserialize(&mut Deserializer::new(v)).map(Some),
+            None => Ok(None)
         }
     }
 
@@ -442,30 +438,19 @@ impl<'a> de::SeqVisitor for SeqVisitor<'a> {
     }
 }
 
-struct MapVisitor<'a> {
-    de: &'a mut Deserializer
+struct MapVisitor {
+    iter: vec::IntoIter<Value>,
 }
 
-impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
+impl serde::de::MapVisitor for MapVisitor {
     type Error = Error;
 
     fn visit_key<K>(&mut self) -> Result<Option<K>>
         where K: de::Deserialize,
     {
-        loop {
-            if self.de.peek().is_some() {
-                let key = serde::Deserialize::deserialize(self.de)?;
-
-                if self.de.peek() == Some(&Value::Data(b"".to_vec())) {
-                    // Empty string value, don't do anything with it.
-                    self.de.next().ok();
-                    continue;
-                }
-
-                return Ok(Some(key));
-            } else {
-                return Ok(None);
-            }
+        match self.iter.next() {
+            Some(v) => serde::Deserialize::deserialize(&mut Deserializer::new(v)).map(Some),
+            None => Ok(None)
         }
     }
 
@@ -473,7 +458,10 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     fn visit_value<V>(&mut self) -> Result<V>
         where V: de::Deserialize,
     {
-        serde::Deserialize::deserialize(self.de)
+        match self.iter.next() {
+            Some(v) => serde::Deserialize::deserialize(&mut Deserializer::new(v)),
+            None => Err(Error::EndOfStream),
+        }
     }
 
     #[inline]
@@ -485,7 +473,6 @@ impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
     fn missing_field<V>(&mut self, _field: &'static str) -> Result<V>
         where V: de::Deserialize,
     {
-
         let mut de = de::value::ValueDeserializer::into_deserializer(());
         de::Deserialize::deserialize(&mut de)
     }
