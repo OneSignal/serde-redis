@@ -13,8 +13,7 @@ pub use decode::Deserializer;
 pub fn from_redis_value<T>(rv: ::redis::Value) -> decode::Result<T>
     where T: serde::de::Deserialize
 {
-    let mut de = Deserializer::new(rv);
-    ::serde::de::Deserialize::deserialize(&mut de)
+    ::serde::de::Deserialize::deserialize(Deserializer::new(rv))
 }
 
 pub trait RedisDeserialize<T>
@@ -27,8 +26,7 @@ impl<T> RedisDeserialize<T> for redis::Value
     where T: serde::de::Deserialize
 {
     fn deserialize(self) -> decode::Result<T> {
-        let mut de = Deserializer::new(self);
-        ::serde::de::Deserialize::deserialize(&mut de)
+        ::serde::de::Deserialize::deserialize(Deserializer::new(self))
     }
 }
 

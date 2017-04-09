@@ -1,5 +1,5 @@
 use std::error;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::iter::Peekable;
 use std::num;
 use std::string;
@@ -8,16 +8,17 @@ use std::vec;
 use redis::Value;
 
 use serde::{self, de};
-use serde::de::Visitor;
+use serde::de::{Visitor, DeserializeSeed};
 
 /// Error that can be produced during deserialization
 #[derive(Debug)]
 pub enum Error {
     Custom(String),
-    TypeMismatch(String),
     EndOfStream,
-    UnknownField(String),
+    UnknownVariant(String, &'static [&'static str]),
+    UnknownField(String, &'static [&'static str]),
     MissingField(&'static str),
+    DuplicateField(&'static str),
     DeserializeNotSupported,
     WrongValue(String),
     FromUtf8(string::FromUtf8Error),
@@ -39,10 +40,11 @@ impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::Custom(_) => "custom error when decoding redis values",
-            Error::TypeMismatch(_) => "type mismatch when decoding redis values",
             Error::EndOfStream => "end of redis value stream",
-            Error::UnknownField(_) => "unknown field",
+            Error::UnknownField(..) => "unknown field",
+            Error::UnknownVariant(..) => "unknown variant",
             Error::MissingField(_) => "missing field",
+            Error::DuplicateField(_) => "duplicate field",
             Error::DeserializeNotSupported => "unsupported deserialization operation",
             Error::WrongValue(_) => "expected value of different type",
             Error::FromUtf8(ref err) => err.description(),
@@ -65,10 +67,15 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::Custom(ref reason) => write!(f, "CustomError({})", reason),
-            Error::TypeMismatch(ref t) => write!(f, "TypeMismatch(expected: {})", t),
             Error::EndOfStream => write!(f, "Reached end of stream"),
-            Error::UnknownField(ref field) => write!(f, "got unexpected field: {}", field),
-            Error::MissingField(ref field) => write!(f, "missing field: {}", field),
+            Error::UnknownVariant(ref variant, ref expected) => {
+                write!(f, "unexpected variant \"{}\"; expected {:?}", variant, expected)
+            },
+            Error::UnknownField(ref field, ref expected) => {
+                write!(f, "unexpected field \"{}\"; expected {:?}", field, expected)
+            },
+            Error::MissingField(ref field) => write!(f, "missing field {:?}", field),
+            Error::DuplicateField(ref field) => write!(f, "duplicate field {:?}", field),
             Error::DeserializeNotSupported => write!(f, "Deserialization option not supported"),
             Error::WrongValue(ref value_type) => write!(f, "Got unexpected value: {}", value_type),
             Error::FromUtf8(ref e) => write!(f, "{}", e),
@@ -80,40 +87,25 @@ impl fmt::Display for Error {
 
 impl de::Error for Error {
     /// Raised when there is general error when deserializing a type.
-    fn custom<T: Into<String>>(msg: T) -> Self {
-        Error::Custom(msg.into())
-    }
-
-    /// Raised when a `Deserialize` type unexpectedly hit the end of the stream.
-    fn end_of_stream() -> Self {
-        Error::EndOfStream
-    }
-
-    /// Raised when a `Deserialize` was passed an incorrect value.
-    fn invalid_value(msg: &str) -> Self {
-        Error::custom(format!("Invalid value: {}", msg))
-    }
-
-    /// Raised when a fixed sized sequence or map was passed in the wrong amount of arguments.
-    fn invalid_length(len: usize) -> Self {
-        Error::custom(format!("Invalid length: {}", len))
+    fn custom<T: Display>(msg: T) -> Self {
+        Error::Custom(msg.to_string())
     }
 
     /// Raised when a `Deserialize` enum type received an unexpected variant.
-    fn unknown_variant(field: &str) -> Self {
-        Error::custom(format!("Unknown variant `{}`", field))
+    fn unknown_variant(variant: &str, expected: &'static [&'static str]) -> Self {
+        Error::UnknownVariant(variant.to_owned(), expected)
     }
 
-    fn unknown_field(field: &str) -> Error {
-        Error::UnknownField(field.into())
+    fn unknown_field(field: &str, expected: &'static [&'static str]) -> Error {
+        Error::UnknownField(field.to_owned(), expected)
     }
 
     fn missing_field(field: &'static str) -> Error {
         Error::MissingField(field)
     }
 
-    fn invalid_type(t: ::serde::de::Type) -> Error {
-        Error::TypeMismatch(format!("{:?}", t))
+    fn duplicate_field(field: &'static str) -> Error {
+        Error::DuplicateField(field)
     }
 }
 
@@ -187,21 +179,21 @@ impl Deserializer {
     pub fn next(&mut self) -> Result<Value> {
         match self.values.next() {
             Some(value) => Ok(value),
-            None => Err(serde::de::Error::end_of_stream())
+            None => Err(Error::EndOfStream)
         }
     }
 
     pub fn next_bulk(&mut self) -> Result<Vec<Value>> {
-        match try!(self.next()) {
+        match self.next()? {
             Value::Bulk(values) => Ok(values),
             v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v)))
         }
     }
 
     pub fn read_string(&mut self) -> Result<String> {
-        let redis_value = try!(self.next());
+        let redis_value = self.next()?;
         Ok(match redis_value {
-            Value::Data(bytes) => try!(String::from_utf8(bytes)),
+            Value::Data(bytes) => String::from_utf8(bytes)?,
             _ => {
                 let msg = format!("Expected Data, got {:?}", &redis_value);
                 return Err(Error::wrong_value(msg));
@@ -213,15 +205,15 @@ impl Deserializer {
 macro_rules! impl_num {
     ($ty:ty, $deserialize_method:ident, $visitor_method:ident) => {
         #[inline]
-        fn $deserialize_method<V>(&mut self, mut visitor: V) -> Result<V::Value>
+        fn $deserialize_method<V>(mut self, visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor,
         {
 
-            let redis_value = try!(self.next());
+            let redis_value = self.next()?;
             let value = match redis_value {
                 Value::Data(bytes) => {
-                    let s = try!(String::from_utf8(bytes));
-                    try!(s.parse::<$ty>())
+                    let s = String::from_utf8(bytes)?;
+                    s.parse::<$ty>()?
                 },
                 Value::Int(i) => i as $ty,
                 _ => {
@@ -239,7 +231,7 @@ macro_rules! default_deserialize {
     ($($name:ident)*) => {
         $(
             #[inline]
-            fn $name<V>(&mut self, visitor: V) -> Result<V::Value>
+            fn $name<V>(self, visitor: V) -> Result<V::Value>
                 where V: serde::de::Visitor
             {
                 self.deserialize(visitor)
@@ -252,18 +244,18 @@ impl serde::Deserializer for Deserializer {
     type Error = Error;
 
     #[inline]
-    fn deserialize<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
     #[inline]
-    fn deserialize_string<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_string<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_string(s)
     }
 
@@ -271,13 +263,11 @@ impl serde::Deserializer for Deserializer {
     impl_num!(u16, deserialize_u16, visit_u16);
     impl_num!(u32, deserialize_u32, visit_u32);
     impl_num!(u64, deserialize_u64, visit_u64);
-    impl_num!(usize, deserialize_usize, visit_usize);
 
     impl_num!(i8, deserialize_i8, visit_i8);
     impl_num!(i16, deserialize_i16, visit_i16);
     impl_num!(i32, deserialize_i32, visit_i32);
     impl_num!(i64, deserialize_i64, visit_i64);
-    impl_num!(isize, deserialize_isize, visit_isize);
 
     impl_num!(f32, deserialize_f32, visit_f32);
     impl_num!(f64, deserialize_f64, visit_f64);
@@ -290,14 +280,21 @@ impl serde::Deserializer for Deserializer {
     );
 
     #[inline]
-    fn deserialize_bytes<V>(&mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
         self.deserialize_seq(visitor)
     }
 
     #[inline]
-    fn deserialize_tuple_struct<V>(&mut self,
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    #[inline]
+    fn deserialize_tuple_struct<V>(self,
                                    _name: &'static str,
                                    len: usize,
                                    visitor: V) -> Result<V::Value>
@@ -307,39 +304,37 @@ impl serde::Deserializer for Deserializer {
     }
 
     #[inline]
-    fn deserialize_tuple<V>(&mut self, _len: usize, visitor: V) -> Result<V::Value>
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value>
         where V: Visitor,
     {
         self.deserialize_seq(visitor)
     }
 
     #[inline]
-    fn deserialize_seq<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_seq<V>(mut self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
-        let values = try!(self.next_bulk());
-        let mut de = Deserializer::new(values);
-        visitor.visit_seq(SeqVisitor { de: &mut de })
+        let values = self.next_bulk()?;
+        visitor.visit_seq(SeqVisitor { iter: values.into_iter() })
     }
 
     #[inline]
-    fn deserialize_seq_fixed_size<V>(&mut self, _len: usize, visitor: V) -> Result<V::Value>
+    fn deserialize_seq_fixed_size<V>(self, _len: usize, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
         self.deserialize_seq(visitor)
     }
 
     #[inline]
-    fn deserialize_map<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_map<V>(mut self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let values = try!(self.next_bulk());
-        let mut de = Deserializer::new(values);
-        visitor.visit_map(MapVisitor { de: &mut de })
+        let values = self.next_bulk()?;
+        visitor.visit_map(MapVisitor { iter: values.into_iter() })
     }
 
     #[inline]
-    fn deserialize_unit_struct<V>(&mut self,
+    fn deserialize_unit_struct<V>(self,
                                   _name: &'static str,
                                   visitor: V) -> Result<V::Value>
         where V: Visitor,
@@ -348,7 +343,7 @@ impl serde::Deserializer for Deserializer {
     }
 
     #[inline]
-    fn deserialize_struct<V>(&mut self,
+    fn deserialize_struct<V>(self,
                              _name: &'static str,
                              _fields: &'static [&'static str],
                              visitor: V) -> Result<V::Value>
@@ -358,33 +353,36 @@ impl serde::Deserializer for Deserializer {
     }
 
     #[inline]
-    fn deserialize_struct_field<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_struct_field<V>(mut self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
     #[inline]
-    fn deserialize_ignored_any<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_ignored_any<V>(mut self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        let s = try!(self.read_string());
+        let s = self.read_string()?;
         visitor.visit_str(&s[..])
     }
 
     #[inline]
-    fn deserialize_enum<V>(&mut self,
+    fn deserialize_enum<V>(mut self,
                      _enum: &'static str,
                      _variants: &'static [&'static str],
-                     mut visitor: V) -> Result<V::Value>
-        where V: serde::de::EnumVisitor,
+                     visitor: V) -> Result<V::Value>
+        where V: serde::de::Visitor,
     {
-        visitor.visit(VariantVisitor { de: self })
+        visitor.visit_enum(EnumVisitor {
+            variant: self.next()?,
+            content: Value::Nil
+        })
     }
 
     #[inline]
-    fn deserialize_option<V>(&mut self, mut visitor: V) -> Result<V::Value>
+    fn deserialize_option<V>(mut self, visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
         let maybe = match self.peek() {
@@ -410,125 +408,112 @@ impl serde::Deserializer for Deserializer {
     }
 
     #[inline]
-    fn deserialize_newtype_struct<V>(&mut self,
+    fn deserialize_newtype_struct<V>(self,
                                      _name: &'static str,
-                                     mut visitor: V) -> Result<V::Value>
+                                     visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor
     {
         visitor.visit_newtype_struct(self)
     }
 }
 
-struct SeqVisitor<'a> {
-    de: &'a mut Deserializer,
+struct SeqVisitor {
+    iter: vec::IntoIter<Value>,
 }
 
-impl<'a> de::SeqVisitor for SeqVisitor<'a> {
+impl de::SeqVisitor for SeqVisitor {
     type Error = Error;
 
-    fn visit<T>(&mut self) -> Result<Option<T>>
-        where T: de::Deserialize
+    fn visit_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+        where T: de::DeserializeSeed
     {
-        if self.de.peek().is_some() {
-            let value = try!(serde::Deserialize::deserialize(self.de));
-            Ok(Some(value))
-        } else {
-            Ok(None)
+        match self.iter.next() {
+            Some(v) => seed.deserialize(Deserializer::new(v)).map(Some),
+            None => Ok(None)
         }
     }
 
-    fn end(&mut self) -> Result<()> {
-        Ok(())
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, self.iter.size_hint().1)
     }
 }
 
-struct MapVisitor<'a> {
-    de: &'a mut Deserializer
+struct MapVisitor {
+    iter: vec::IntoIter<Value>,
 }
 
-impl<'a> serde::de::MapVisitor for MapVisitor<'a> {
+impl serde::de::MapVisitor for MapVisitor {
     type Error = Error;
 
-    fn visit_key<K>(&mut self) -> Result<Option<K>>
-        where K: de::Deserialize,
+    fn visit_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
+        where K: de::DeserializeSeed,
     {
-        loop {
-            if self.de.peek().is_some() {
-                let key = try!(serde::Deserialize::deserialize(self.de));
-
-                if self.de.peek() == Some(&Value::Data(b"".to_vec())) {
-                    // Empty string value, don't do anything with it.
-                    self.de.next().ok();
-                    continue;
-                }
-
-                return Ok(Some(key));
-            } else {
-                return Ok(None);
-            }
+        match self.iter.next() {
+            Some(v) => seed.deserialize(Deserializer::new(v)).map(Some),
+            None => Ok(None)
         }
     }
 
     #[inline]
-    fn visit_value<V>(&mut self) -> Result<V>
-        where V: de::Deserialize,
+    fn visit_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
+        where V: de::DeserializeSeed,
     {
-        serde::Deserialize::deserialize(self.de)
-    }
-
-    #[inline]
-    fn end(&mut self) -> Result<()> {
-        // ignore any unused values since keys can randomly be added in Redis
-        Ok(())
-    }
-
-    fn missing_field<V>(&mut self, _field: &'static str) -> Result<V>
-        where V: de::Deserialize,
-    {
-
-        let mut de = de::value::ValueDeserializer::into_deserializer(());
-        de::Deserialize::deserialize(&mut de)
+        match self.iter.next() {
+            Some(v) => seed.deserialize(Deserializer::new(v)),
+            None => Err(Error::EndOfStream),
+        }
     }
 }
 
-struct VariantVisitor<'a> {
-    de: &'a mut Deserializer
+struct VariantVisitor {
+    value: Value,
 }
 
-impl<'a> serde::de::VariantVisitor for VariantVisitor<'a> {
+impl serde::de::VariantVisitor for VariantVisitor {
     type Error = Error;
 
-    fn visit_variant<V>(&mut self) -> Result<V>
-        where V: serde::Deserialize,
-    {
-        let value = try!(serde::Deserialize::deserialize(self.de));
-        Ok(value)
-    }
-
-    fn visit_unit(&mut self) -> Result<()> {
+    fn visit_unit(self) -> Result<()> {
         Ok(())
     }
 
-    fn visit_newtype<T>(&mut self) -> Result<T>
-        where T: serde::de::Deserialize,
+    fn visit_newtype_seed<T>(self, seed: T) -> Result<T::Value>
+        where T: serde::de::DeserializeSeed,
     {
-        Err(de::Error::custom("newtype variants are not supported"))
+        seed.deserialize(Deserializer::new(self.value))
     }
 
-    fn visit_tuple<V>(&mut self,
+    fn visit_tuple<V>(self,
                       _len: usize,
-                      _visitor: V) -> Result<V::Value>
+                      visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        Err(de::Error::custom("tuple variants are not supported"))
+        de::Deserializer::deserialize(Deserializer::new(self.value), visitor)
     }
 
-    fn visit_struct<V>(&mut self,
+    fn visit_struct<V>(self,
                        _fields: &'static [&'static str],
-                       _visitor: V) -> Result<V::Value>
+                       visitor: V) -> Result<V::Value>
         where V: serde::de::Visitor,
     {
-        Err(de::Error::custom("struct variants are not supported"))
+        de::Deserializer::deserialize(Deserializer::new(self.value), visitor)
     }
 }
 
+struct EnumVisitor {
+    variant: Value,
+    content: Value,
+}
+
+impl de::EnumVisitor for EnumVisitor {
+    type Error = Error;
+    type Variant = VariantVisitor;
+
+    fn visit_variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
+        where V: DeserializeSeed
+    {
+        Ok((
+            seed.deserialize(Deserializer::new(self.variant))?,
+            VariantVisitor { value: self.content }
+        ))
+    }
+}
