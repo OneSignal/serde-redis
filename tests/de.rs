@@ -23,8 +23,8 @@ fn deserialize_unit_struct_string() {
     #[derive(Deserialize, Debug, PartialEq)]
     struct Unit(String);
 
-    let mut de = Deserializer::new(v);
-    let actual: Unit = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(v);
+    let actual: Unit = Deserialize::deserialize(de).unwrap();
 
     let expected = Unit("hello".to_owned());
     assert_eq!(expected, actual);
@@ -38,8 +38,8 @@ fn deserialize_unit_struct_u8_redis_int() {
     #[derive(Deserialize, Debug, PartialEq)]
     struct IntUnit(u8);
 
-    let mut de = Deserializer::new(v);
-    let actual: IntUnit = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(v);
+    let actual: IntUnit = Deserialize::deserialize(de).unwrap();
 
     let expected = IntUnit(num);
     assert_eq!(expected, actual);
@@ -49,8 +49,8 @@ fn deserialize_unit_struct_u8_redis_int() {
 fn deserialize_tuple() {
     let v = vec![Value::Int(5), Value::Data(b"hello".to_vec())];
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: (u8, String) = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: (u8, String) = Deserialize::deserialize(de).unwrap();
 
     let expected = (5, "hello".to_owned());
     assert_eq!(expected, actual);
@@ -69,8 +69,8 @@ fn deserialize_struct() {
         b: String,
     }
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Simple = Deserialize::deserialize(de).unwrap();
 
     let expected = Simple {
         a: "apple".to_owned(),
@@ -91,8 +91,8 @@ fn deserialize_hash_map_strings() {
     expected.insert("a".to_string(), "apple".to_string());
     expected.insert("b".to_string(), "banana".to_string());
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: HashMap<String, String> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: HashMap<String, String> = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(expected, actual);
 }
@@ -103,8 +103,8 @@ fn deserialize_float() {
 
     let expected = "3.14159".parse::<f32>().unwrap();
 
-    let mut de = Deserializer::new(v);
-    let actual: f32 = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(v);
+    let actual: f32 = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(actual, expected);
 }
@@ -120,8 +120,8 @@ fn deserialize_hash_map_string_u8() {
     expected.insert("a".to_string(), 1);
     expected.insert("b".to_string(), 2);
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: HashMap<String, u8> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: HashMap<String, u8> = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(expected, actual);
 }
@@ -139,8 +139,8 @@ fn deserialize_struct_out_of_order() {
         b: String,
     }
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Simple = Deserialize::deserialize(de).unwrap();
 
     let expected = Simple {
         a: "apple".to_owned(),
@@ -165,8 +165,8 @@ fn deserialize_struct_extra_keys() {
         b: String,
     }
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Simple = Deserialize::deserialize(de).unwrap();
 
     let expected = Simple {
         a: "apple".to_owned(),
@@ -186,16 +186,16 @@ fn deserialize_enum() {
         Apple
     }
 
-    let mut de = Deserializer::new(v);
-    let actual: Fruit = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(v);
+    let actual: Fruit = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(Fruit::Orange, actual);
 }
 
 #[test]
 fn deserialize_option() {
-    let mut de = Deserializer::new(Value::Nil);
-    let actual: Option<u8> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Nil);
+    let actual: Option<u8> = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(None, actual);
 }
@@ -223,8 +223,8 @@ fn deserialize_complex_struct() {
         s: "yarn".to_owned()
     };
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Complex = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Complex = Deserialize::deserialize(de).unwrap();
 
     assert_eq!(expected, actual);
 }
@@ -237,8 +237,8 @@ fn deserialize_vec_of_strings() {
         Value::Data(b"third".to_vec()),
     ];
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Vec<String> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Vec<String> = Deserialize::deserialize(de).unwrap();
 
     let expected = vec!["first".to_string(), "second".to_string(), "third".to_string()];
     assert_eq!(expected, actual);
@@ -255,8 +255,8 @@ fn deserialize_vec_of_newtype() {
     #[derive(Debug, PartialEq, Deserialize)]
     struct Rank(String);
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Vec<Rank> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Vec<Rank> = Deserialize::deserialize(de).unwrap();
 
     let expected = vec![
         Rank("first".into()),
@@ -292,8 +292,8 @@ fn deserialize_pipelined_hmap() {
         b: String,
     }
 
-    let mut de = Deserializer::new(values);
-    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(values);
+    let actual: Vec<Simple> = Deserialize::deserialize(de).unwrap();
 
     let expected = vec![Simple {
         a: "apple".to_owned(),
@@ -323,8 +323,8 @@ fn deserialize_pipelined_single_hmap() {
         b: String,
     }
 
-    let mut de = Deserializer::new(values);
-    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(values);
+    let actual: Vec<Simple> = Deserialize::deserialize(de).unwrap();
 
     let expected = vec![Simple {
         a: "apple".to_owned(),
@@ -350,8 +350,8 @@ fn deserialize_struct_with_newtype_field() {
         b: Fruit,
     }
 
-    let mut de = Deserializer::new(Value::Bulk(v));
-    let actual: Simple = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Simple = Deserialize::deserialize(de).unwrap();
 
     let expected = Simple {
         a: Fruit(String::from("apple")),
@@ -382,8 +382,8 @@ fn deserialize_pipelined_single_hmap_newtype_fields() {
         b: Fruit,
     }
 
-    let mut de = Deserializer::new(values);
-    let actual: Vec<Simple> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(values);
+    let actual: Vec<Simple> = Deserialize::deserialize(de).unwrap();
 
     let expected = vec![Simple {
         a: Fruit(String::from("apple")),
@@ -416,8 +416,8 @@ fn deserialize_nested_map_map_list() {
         ])
     ]);
 
-    let mut de = Deserializer::new(value);
-    let map: MapMapList = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(value);
+    let map: MapMapList = Deserialize::deserialize(de).unwrap();
 
     let nest = map.get("key").unwrap();
     assert_eq!(nest.count, 4);
@@ -432,6 +432,6 @@ fn deserialize_nested_map_map_list() {
 fn deserialize_nested_item() {
     let value = Value::Bulk(vec![Value::Bulk(vec![Value::Data(b"hi".to_vec())])]);
 
-    let mut de = Deserializer::new(value);
-    let _hellos: Vec<String> = Deserialize::deserialize(&mut de).unwrap();
+    let de = Deserializer::new(value);
+    let _hellos: Vec<String> = Deserialize::deserialize(de).unwrap();
 }
