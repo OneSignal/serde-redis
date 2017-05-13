@@ -10,20 +10,20 @@ pub use encode::Serializer;
 pub use decode::Deserializer;
 
 /// Use serde Deserialize to build `T` from a `redis::Value`
-pub fn from_redis_value<T>(rv: ::redis::Value) -> decode::Result<T>
-    where T: serde::de::Deserialize
+pub fn from_redis_value<'de, T>(rv: ::redis::Value) -> decode::Result<T>
+    where T: serde::de::Deserialize<'de>
 {
     ::serde::de::Deserialize::deserialize(Deserializer::new(rv))
 }
 
-pub trait RedisDeserialize<T>
-    where T: serde::de::Deserialize
+pub trait RedisDeserialize<'de, T>
+    where T: serde::de::Deserialize<'de>
 {
     fn deserialize(self) -> decode::Result<T>;
 }
 
-impl<T> RedisDeserialize<T> for redis::Value
-    where T: serde::de::Deserialize
+impl<'de, T> RedisDeserialize<'de, T> for redis::Value
+    where T: serde::de::Deserialize<'de>
 {
     fn deserialize(self) -> decode::Result<T> {
         ::serde::de::Deserialize::deserialize(Deserializer::new(self))
