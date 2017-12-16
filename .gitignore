@@ -1,2 +1,5 @@
 target
 Cargo.lock
+.idea/
+CMakeLists.txt
+cmake-build-debug/
