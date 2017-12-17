@@ -16,10 +16,18 @@ pub fn from_redis_value<'de, T>(rv: ::redis::Value) -> decode::Result<T>
     ::serde::de::Deserialize::deserialize(Deserializer::new(rv))
 }
 
+/// Use serde Deserialize to build `T` from a `redis::Value` with support for deep links
+pub fn from_redis_value_deep<'de, T>(rv: ::redis::Value, db: &'de redis::Connection) -> decode::Result<T>
+    where T: serde::de::Deserialize<'de>
+{
+    ::serde::de::Deserialize::deserialize(Deserializer::new_deep(rv, db))
+}
+
 pub trait RedisDeserialize<'de, T>
     where T: serde::de::Deserialize<'de>
 {
     fn deserialize(self) -> decode::Result<T>;
+    fn deserialize_deep(self, db: &'de redis::Connection) -> decode::Result<T>;
 }
 
 impl<'de, T> RedisDeserialize<'de, T> for redis::Value
@@ -27,6 +35,10 @@ impl<'de, T> RedisDeserialize<'de, T> for redis::Value
 {
     fn deserialize(self) -> decode::Result<T> {
         ::serde::de::Deserialize::deserialize(Deserializer::new(self))
+    }
+
+    fn deserialize_deep(self, db: &'de redis::Connection) -> decode::Result<T> {
+        ::serde::de::Deserialize::deserialize(Deserializer::new_deep(self, db))
     }
 }
 

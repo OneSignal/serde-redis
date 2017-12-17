@@ -4,10 +4,13 @@ use std::iter::Peekable;
 use std::num;
 use std::string;
 use std::vec;
+use std::str::from_utf8;
+use std::error::Error as StdError;
 
-use redis::Value;
+use redis::{self, Value, Commands};
 
 use serde::{self, de};
+use serde::de::Error as SerdeError;
 
 /// Error that can be produced during deserialization
 #[derive(Debug)]
@@ -135,9 +138,16 @@ impl From<num::ParseFloatError> for Error {
 ///
 /// If creating a Deserializer manually (ie not using `from_redis_value()`), the redis values must
 /// first be placed in a Vec.
-#[derive(Debug)]
-pub struct Deserializer {
+pub struct Deserializer<'a> {
     values: Peekable<vec::IntoIter<Value>>,
+    db: Option<&'a redis::Connection>
+}
+
+// Can't derive because redis::Connection does not implement Debug
+impl<'a> fmt::Debug for Deserializer<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Deserializer {{ values: {:?}, db: {} }}", self.values, if self.db.is_some() { "Yes" } else { "No" })
+    }
 }
 
 pub trait IntoValueVec {
@@ -158,12 +168,25 @@ impl IntoValueVec for Vec<Value> {
     }
 }
 
-impl Deserializer {
-    pub fn new<V>(values: V) -> Deserializer
+impl<'a> Deserializer<'a> {
+    pub fn new<V>(values: V) -> Deserializer<'a>
+        where V: IntoValueVec
+    {
+        Deserializer::new_internal(values, None)
+    }
+
+    pub fn new_deep<V>(values: V, db: &'a redis::Connection) -> Deserializer<'a>
+        where V: IntoValueVec
+    {
+        Deserializer::new_internal(values, Some(db))
+    }
+
+    fn new_internal<V>(values: V, db: Option<&'a redis::Connection>) -> Deserializer<'a>
         where V: IntoValueVec
     {
         Deserializer {
             values: values.into_value_vec().into_iter().peekable(),
+            db
         }
     }
 
@@ -185,7 +208,63 @@ impl Deserializer {
     pub fn next_bulk(&mut self) -> Result<Vec<Value>> {
         match self.next()? {
             Value::Bulk(values) => Ok(values),
+            Value::Data(values) => self.read_deeper(values),
             v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v)))
+        }
+    }
+
+    /// Try to read the linked Redis data structure (hash, set, list). This is assuming that
+    /// `values` is a valid key in the database encoded as UTF-8.
+    fn read_deeper(&self, values: Vec<u8>) -> Result<Vec<Value>> {
+        if self.db.is_none() {
+            return Err(Error::wrong_value("expected bulk but got data and was given no database"));
+        }
+
+        // Check if it's a database key (deep link)
+        match from_utf8(&values) {
+            Ok(key) => {
+                let db = *self.db.as_ref().unwrap();
+
+                // Get the command to use based on the key
+                let command = self.get_expand_command(key, db)?;
+
+                match command.query(db) {
+                    Ok(o) => Ok(o),
+                    Err(e) => Err(Error::custom(format!("Failed to follow deep link: {}", e.description())))
+                }
+            },
+            Err(e) => {
+                Err(Error::wrong_value(format!(
+                    "expected bulk, got data and expected key, but was unable to parse: {:?}",
+                    e.description()
+                )))
+            }
+        }
+    }
+
+    /// Get the command to read in the key's data. The key must reference a hash, set, or list
+    fn get_expand_command(&self, key: &str, db: &redis::Connection) -> Result<redis::Cmd> {
+        match redis::cmd("TYPE").arg(key).query::<String>(db) {
+            Ok(t) => match t.as_str() {
+                "hash" => {
+                    let mut cmd = redis::cmd("HGETALL");
+                    cmd.arg(key);
+                    Ok(cmd)
+                },
+                "set" => {
+                    let mut cmd = redis::cmd("SMEMBERS");
+                    cmd.arg(key);
+                    Ok(cmd)
+                },
+                "list" => {
+                    let mut cmd = redis::cmd("LRANGE");
+                    cmd.arg(key).arg(0).arg(-1);
+                    Ok(cmd)
+                },
+                "none" => return Err(Error::missing_field("missing field")),
+                 _ => return Err(Error::wrong_value(format!("expected deep link, got {:?}", t)))
+            },
+            Err(e) => return Err(Error::custom(e.description().to_string()))
         }
     }
 
@@ -239,7 +318,7 @@ macro_rules! default_deserialize {
     }
 }
 
-impl<'de> serde::Deserializer<'de> for Deserializer {
+impl<'de> serde::Deserializer<'de> for Deserializer<'de> {
     type Error = Error;
 
     #[inline]
@@ -314,7 +393,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         where V: de::Visitor<'de>
     {
         let values = self.next_bulk()?;
-        visitor.visit_seq(SeqVisitor { iter: values.into_iter() })
+        visitor.visit_seq(SeqVisitor { iter: values.into_iter(), db: self.db.clone() })
     }
 
     #[inline]
@@ -322,7 +401,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         where V: de::Visitor<'de>
     {
         let values = self.next_bulk()?;
-        visitor.visit_map(MapVisitor { iter: values.into_iter() })
+        visitor.visit_map(MapVisitor { iter: values.into_iter(), db: self.db.clone() })
     }
 
     #[inline]
@@ -361,7 +440,8 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     {
         visitor.visit_enum(EnumVisitor {
             variant: self.next()?,
-            content: Value::Nil
+            content: Value::Nil,
+            db: self.db.clone()
         })
     }
 
@@ -407,18 +487,19 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     }
 }
 
-struct SeqVisitor {
+struct SeqVisitor<'a> {
     iter: vec::IntoIter<Value>,
+    db: Option<&'a redis::Connection>
 }
 
-impl<'de> de::SeqAccess<'de> for SeqVisitor {
+impl<'de> de::SeqAccess<'de> for SeqVisitor<'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
         where T: de::DeserializeSeed<'de>
     {
         match self.iter.next() {
-            Some(v) => seed.deserialize(Deserializer::new(v)).map(Some),
+            Some(v) => seed.deserialize(Deserializer::new_internal(v, self.db.clone())).map(Some),
             None => Ok(None)
         }
     }
@@ -428,18 +509,19 @@ impl<'de> de::SeqAccess<'de> for SeqVisitor {
     }
 }
 
-struct MapVisitor {
+struct MapVisitor<'a> {
     iter: vec::IntoIter<Value>,
+    db: Option<&'a redis::Connection>
 }
 
-impl<'de> serde::de::MapAccess<'de> for MapVisitor {
+impl<'de> serde::de::MapAccess<'de> for MapVisitor<'de> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
         where K: de::DeserializeSeed<'de>,
     {
         match self.iter.next() {
-            Some(v) => seed.deserialize(Deserializer::new(v)).map(Some),
+            Some(v) => seed.deserialize(Deserializer::new_internal(v, self.db.clone())).map(Some),
             None => Ok(None)
         }
     }
@@ -449,17 +531,18 @@ impl<'de> serde::de::MapAccess<'de> for MapVisitor {
         where V: de::DeserializeSeed<'de>,
     {
         match self.iter.next() {
-            Some(v) => seed.deserialize(Deserializer::new(v)),
+            Some(v) => seed.deserialize(Deserializer::new_internal(v, self.db.clone())),
             None => Err(Error::EndOfStream),
         }
     }
 }
 
-struct VariantVisitor {
+struct VariantVisitor<'a> {
     value: Value,
+    db: Option<&'a redis::Connection>
 }
 
-impl<'de> serde::de::VariantAccess<'de> for VariantVisitor {
+impl<'de> serde::de::VariantAccess<'de> for VariantVisitor<'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
@@ -469,14 +552,14 @@ impl<'de> serde::de::VariantAccess<'de> for VariantVisitor {
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
         where T: de::DeserializeSeed<'de>,
     {
-        seed.deserialize(Deserializer::new(self.value))
+        seed.deserialize(Deserializer::new_internal(self.value, self.db.clone()))
     }
 
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
         use serde::Deserializer;
-        let deserializer = self::Deserializer::new(self.value);
+        let deserializer = self::Deserializer::new_internal(self.value, self.db.clone());
         deserializer.deserialize_any(visitor)
     }
 
@@ -484,26 +567,27 @@ impl<'de> serde::de::VariantAccess<'de> for VariantVisitor {
         where V: de::Visitor<'de>
     {
         use serde::Deserializer;
-        let deserializer = self::Deserializer::new(self.value);
+        let deserializer = self::Deserializer::new_internal(self.value, self.db.clone());
         deserializer.deserialize_any(visitor)
     }
 }
 
-struct EnumVisitor {
+struct EnumVisitor<'a> {
     variant: Value,
     content: Value,
+    db: Option<&'a redis::Connection>
 }
 
-impl<'de> de::EnumAccess<'de> for EnumVisitor {
+impl<'de> de::EnumAccess<'de> for EnumVisitor<'de> {
     type Error = Error;
-    type Variant = VariantVisitor;
+    type Variant = VariantVisitor<'de>;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
         where V: de::DeserializeSeed<'de>
     {
         Ok((
-            seed.deserialize(Deserializer::new(self.variant))?,
-            VariantVisitor { value: self.content }
+            seed.deserialize(Deserializer::new_internal(self.variant, self.db.clone()))?,
+            VariantVisitor { value: self.content, db: self.db.clone() }
         ))
     }
 }
