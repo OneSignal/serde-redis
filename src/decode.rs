@@ -7,7 +7,7 @@ use std::vec;
 use std::str::from_utf8;
 use std::error::Error as StdError;
 
-use redis::{self, Value, Commands};
+use redis::{self, Value};
 
 use serde::{self, de};
 use serde::de::Error as SerdeError;
