@@ -274,9 +274,23 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     default_deserialize!(
         deserialize_str
         deserialize_char
-        deserialize_bool
         deserialize_unit
     );
+
+    #[inline]
+    fn deserialize_bool<V>(mut self, visitor: V) -> Result<V::Value>
+        where V: de::Visitor<'de>,
+    {
+        let s = self.read_string()?;
+
+        let b = match s.as_str() {
+            "1" | "true" | "True" => true,
+            "0" | "false" | "False" => false,
+            _ => return Err(Error::WrongValue(format!("Expected 1/0/true/false/True/False, got {}", s)))
+        };
+
+        visitor.visit_bool(b)
+    }
 
     #[inline]
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
