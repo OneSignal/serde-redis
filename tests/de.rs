@@ -55,8 +55,8 @@ fn deserialize_bool() {
     let de = Deserializer::new(Value::Bulk(v));
     let actual: Vec<bool> = Deserialize::deserialize(de).unwrap();
 
-    let expected = vec![false, false, false, true, true, true];
-    assert_eq!(expected, actual);
+    let expected = [false, false, false, true, true, true];
+    assert_eq!(&expected, &actual[..]);
 }
 
 #[test]
