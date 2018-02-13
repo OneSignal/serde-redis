@@ -46,6 +46,20 @@ fn deserialize_unit_struct_u8_redis_int() {
 }
 
 #[test]
+fn deserialize_bool() {
+    let v = vec![
+        Value::Data(b"0".to_vec()), Value::Data(b"false".to_vec()), Value::Data(b"False".to_vec()),
+        Value::Data(b"1".to_vec()), Value::Data(b"true".to_vec()), Value::Data(b"True".to_vec())
+    ];
+
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Vec<bool> = Deserialize::deserialize(de).unwrap();
+
+    let expected = [false, false, false, true, true, true];
+    assert_eq!(&expected, &actual[..]);
+}
+
+#[test]
 fn deserialize_tuple() {
     let v = vec![Value::Int(5), Value::Data(b"hello".to_vec())];
 
