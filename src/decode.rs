@@ -189,6 +189,16 @@ impl Deserializer {
         }
     }
 
+    pub fn next_bytes(&mut self) -> Result<Vec<u8>> {
+        match self.next()? {
+            Value::Data(bytes) => Ok(bytes),
+            v => {
+                let msg = format!("Expected bytes, but got {:?}", v);
+                return Err(Error::wrong_value(msg));
+            }
+        }
+    }
+
     pub fn read_string(&mut self) -> Result<String> {
         let redis_value = self.next()?;
         Ok(match redis_value {
@@ -293,10 +303,11 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     }
 
     #[inline]
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        self.deserialize_seq(visitor)
+        let bytes = self.next_bytes()?;
+        visitor.visit_bytes(&bytes)
     }
 
     #[inline]
