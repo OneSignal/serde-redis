@@ -256,8 +256,8 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>,
     {
-        let s = self.read_string()?;
-        visitor.visit_str(&s[..])
+        let buf = self.next_bytes()?;
+        visitor.visit_byte_buf(buf)
     }
 
     #[inline]
