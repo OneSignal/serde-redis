@@ -303,18 +303,18 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     }
 
     #[inline]
-    fn deserialize_bytes<V>(mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        let bytes = self.next_bytes()?;
-        visitor.visit_bytes(&bytes)
+        self.deserialize_byte_buf(visitor)
     }
 
     #[inline]
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        self.deserialize_seq(visitor)
+        let bytes = self.next_bytes()?;
+        visitor.visit_byte_buf(bytes)
     }
 
     #[inline]
