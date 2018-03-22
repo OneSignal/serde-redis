@@ -243,7 +243,7 @@ macro_rules! default_deserialize {
             fn $name<V>(self, visitor: V) -> Result<V::Value>
                 where V: de::Visitor<'de>
             {
-                self.deserialize_any(visitor)
+                self.deserialize_str(visitor)
             }
         )*
     }
@@ -268,6 +268,14 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         visitor.visit_string(s)
     }
 
+    #[inline]
+    fn deserialize_str<V>(mut self, visitor: V) -> Result<V::Value>
+        where V: de::Visitor<'de>,
+    {
+        let s = self.read_string()?;
+        visitor.visit_str(&s[..])
+    }
+
     impl_num!(u8, deserialize_u8, visit_u8);
     impl_num!(u16, deserialize_u16, visit_u16);
     impl_num!(u32, deserialize_u32, visit_u32);
@@ -282,7 +290,6 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     impl_num!(f64, deserialize_f64, visit_f64);
 
     default_deserialize!(
-        deserialize_str
         deserialize_char
         deserialize_unit
     );
