@@ -202,7 +202,7 @@ impl Deserializer {
     pub fn read_string(&mut self) -> Result<String> {
         let redis_value = self.next()?;
         Ok(match redis_value {
-            Value::Data(bytes) => String::from_utf8(bytes).unwrap(),
+            Value::Data(bytes) => String::from_utf8(bytes)?,
             _ => {
                 let msg = format!("Expected Data, got {:?}", &redis_value);
                 return Err(Error::wrong_value(msg));
