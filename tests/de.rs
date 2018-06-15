@@ -1,17 +1,15 @@
-#![feature(proc_macro)]
-
 #[macro_use]
 extern crate serde_derive;
 
 extern crate redis;
-
 extern crate serde;
+extern crate serde_bytes;
 extern crate serde_redis;
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
 use serde_redis::Deserializer;
+use serde::Deserialize;
 
 use redis::Value;
 
@@ -373,6 +371,15 @@ fn deserialize_struct_with_newtype_field() {
     };
 
     assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_byte_buf() {
+    let de = Deserializer::new(Value::Data(b"0000".to_vec()));
+    let actual: serde_bytes::ByteBuf = Deserialize::deserialize(de).unwrap();
+
+    let expected = b"0000";
+    assert_eq!(expected, &actual[..]);
 }
 
 #[test]
