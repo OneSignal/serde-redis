@@ -189,6 +189,16 @@ impl Deserializer {
         }
     }
 
+    pub fn next_bytes(&mut self) -> Result<Vec<u8>> {
+        match self.next()? {
+            Value::Data(bytes) => Ok(bytes),
+            v => {
+                let msg = format!("Expected bytes, but got {:?}", v);
+                return Err(Error::wrong_value(msg));
+            }
+        }
+    }
+
     pub fn read_string(&mut self) -> Result<String> {
         let redis_value = self.next()?;
         Ok(match redis_value {
@@ -233,7 +243,7 @@ macro_rules! default_deserialize {
             fn $name<V>(self, visitor: V) -> Result<V::Value>
                 where V: de::Visitor<'de>
             {
-                self.deserialize_any(visitor)
+                self.deserialize_str(visitor)
             }
         )*
     }
@@ -246,8 +256,8 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>,
     {
-        let s = self.read_string()?;
-        visitor.visit_str(&s[..])
+        let buf = self.next_bytes()?;
+        visitor.visit_byte_buf(buf)
     }
 
     #[inline]
@@ -256,6 +266,14 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     {
         let s = self.read_string()?;
         visitor.visit_string(s)
+    }
+
+    #[inline]
+    fn deserialize_str<V>(mut self, visitor: V) -> Result<V::Value>
+        where V: de::Visitor<'de>,
+    {
+        let s = self.read_string()?;
+        visitor.visit_str(&s[..])
     }
 
     impl_num!(u8, deserialize_u8, visit_u8);
@@ -272,7 +290,6 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     impl_num!(f64, deserialize_f64, visit_f64);
 
     default_deserialize!(
-        deserialize_str
         deserialize_char
         deserialize_unit
     );
@@ -296,14 +313,15 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        self.deserialize_seq(visitor)
+        self.deserialize_byte_buf(visitor)
     }
 
     #[inline]
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(mut self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        self.deserialize_seq(visitor)
+        let bytes = self.next_bytes()?;
+        visitor.visit_byte_buf(bytes)
     }
 
     #[inline]
@@ -359,11 +377,10 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     }
 
     #[inline]
-    fn deserialize_ignored_any<V>(mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
         where V: de::Visitor<'de>
     {
-        let s = self.read_string()?;
-        visitor.visit_str(&s[..])
+        self.deserialize_any(visitor)
     }
 
     #[inline]
