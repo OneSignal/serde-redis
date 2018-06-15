@@ -5,8 +5,8 @@ authors = ["Joe Wilm <joe@jwilm.com>"]
 description = "Serde deserialization for redis-rs"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/one-signal/serde-redis"
-documentation = "https://one-signal.github.io/serde-redis/serde_redis/"
+repository = "https://github.com/OneSignal/serde-redis"
+documentation = "https://OneSignal.github.io/serde-redis/serde_redis/"
 
 [dependencies]
 redis = "> 0.5, < 0.9"
