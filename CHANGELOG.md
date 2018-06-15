@@ -1,6 +1,10 @@
 Changes
 =======
 
+## 0.7.2
+
+- Support for Bytes / ByteBuf deserialization
+
 ## 0.7.1
 
 - Support for bool deserialization
