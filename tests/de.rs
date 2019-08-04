@@ -8,11 +8,10 @@ extern crate serde_redis;
 
 use std::collections::HashMap;
 
-use serde_redis::Deserializer;
 use serde::Deserialize;
+use serde_redis::Deserializer;
 
 use redis::Value;
-
 
 #[test]
 fn deserialize_unit_struct_string() {
@@ -46,8 +45,12 @@ fn deserialize_unit_struct_u8_redis_int() {
 #[test]
 fn deserialize_bool() {
     let v = vec![
-        Value::Data(b"0".to_vec()), Value::Data(b"false".to_vec()), Value::Data(b"False".to_vec()),
-        Value::Data(b"1".to_vec()), Value::Data(b"true".to_vec()), Value::Data(b"True".to_vec())
+        Value::Data(b"0".to_vec()),
+        Value::Data(b"false".to_vec()),
+        Value::Data(b"False".to_vec()),
+        Value::Data(b"1".to_vec()),
+        Value::Data(b"true".to_vec()),
+        Value::Data(b"True".to_vec()),
     ];
 
     let de = Deserializer::new(Value::Bulk(v));
@@ -71,8 +74,10 @@ fn deserialize_tuple() {
 #[test]
 fn deserialize_struct() {
     let v = vec![
-        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
-        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
     ];
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -95,8 +100,10 @@ fn deserialize_struct() {
 #[test]
 fn deserialize_hash_map_strings() {
     let v = vec![
-        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
-        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
     ];
 
     let mut expected = HashMap::new();
@@ -124,8 +131,10 @@ fn deserialize_float() {
 #[test]
 fn deserialize_hash_map_string_u8() {
     let v = vec![
-        Value::Data(b"a".to_vec()), Value::Data(b"1".to_vec()),
-        Value::Data(b"b".to_vec()), Value::Data(b"2".to_vec())
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"1".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"2".to_vec()),
     ];
 
     let mut expected = HashMap::new();
@@ -141,8 +150,10 @@ fn deserialize_hash_map_string_u8() {
 #[test]
 fn deserialize_struct_out_of_order() {
     let v = vec![
-        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
-        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
     ];
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -157,7 +168,6 @@ fn deserialize_struct_out_of_order() {
     let expected = Simple {
         a: "apple".to_owned(),
         b: "banana".to_owned(),
-
     };
 
     assert_eq!(expected, actual);
@@ -166,9 +176,12 @@ fn deserialize_struct_out_of_order() {
 #[test]
 fn deserialize_struct_extra_keys() {
     let v = vec![
-        Value::Data(b"c".to_vec()), Value::Data(b"cranberry".to_vec()),
-        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
-        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+        Value::Data(b"c".to_vec()),
+        Value::Data(b"cranberry".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
     ];
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -195,7 +208,7 @@ fn deserialize_enum() {
     #[derive(Debug, Deserialize, PartialEq)]
     enum Fruit {
         Orange,
-        Apple
+        Apple,
     }
 
     let de = Deserializer::new(v);
@@ -215,9 +228,12 @@ fn deserialize_option() {
 #[test]
 fn deserialize_complex_struct() {
     let v = vec![
-        Value::Data(b"num".to_vec()), Value::Data(b"10".to_vec()),
-        Value::Data(b"opt".to_vec()), Value::Data(b"yes".to_vec()),
-        Value::Data(b"s".to_vec()), Value::Data(b"yarn".to_vec()),
+        Value::Data(b"num".to_vec()),
+        Value::Data(b"10".to_vec()),
+        Value::Data(b"opt".to_vec()),
+        Value::Data(b"yes".to_vec()),
+        Value::Data(b"s".to_vec()),
+        Value::Data(b"yarn".to_vec()),
     ];
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -232,7 +248,7 @@ fn deserialize_complex_struct() {
         num: 10,
         opt: Some("yes".to_owned()),
         not_present: None,
-        s: "yarn".to_owned()
+        s: "yarn".to_owned(),
     };
 
     let de = Deserializer::new(Value::Bulk(v));
@@ -252,7 +268,11 @@ fn deserialize_vec_of_strings() {
     let de = Deserializer::new(Value::Bulk(v));
     let actual: Vec<String> = Deserialize::deserialize(de).unwrap();
 
-    let expected = vec!["first".to_string(), "second".to_string(), "third".to_string()];
+    let expected = vec![
+        "first".to_string(),
+        "second".to_string(),
+        "third".to_string(),
+    ];
     assert_eq!(expected, actual);
 }
 
@@ -285,18 +305,20 @@ fn deserialize_vec_of_newtype() {
 /// not handle this.
 #[test]
 fn deserialize_pipelined_hmap() {
-    let values =
+    let values = Value::Bulk(vec![
         Value::Bulk(vec![
-            Value::Bulk(vec![
-                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
-                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
-            ]),
-            Value::Bulk(vec![
-                Value::Data(b"a".to_vec()), Value::Data(b"art".to_vec()),
-                Value::Data(b"b".to_vec()), Value::Data(b"bold".to_vec())
-            ])
-        ]);
-
+            Value::Data(b"a".to_vec()),
+            Value::Data(b"apple".to_vec()),
+            Value::Data(b"b".to_vec()),
+            Value::Data(b"banana".to_vec()),
+        ]),
+        Value::Bulk(vec![
+            Value::Data(b"a".to_vec()),
+            Value::Data(b"art".to_vec()),
+            Value::Data(b"b".to_vec()),
+            Value::Data(b"bold".to_vec()),
+        ]),
+    ]);
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct Simple {
@@ -307,27 +329,28 @@ fn deserialize_pipelined_hmap() {
     let de = Deserializer::new(values);
     let actual: Vec<Simple> = Deserialize::deserialize(de).unwrap();
 
-    let expected = vec![Simple {
-        a: "apple".to_owned(),
-        b: "banana".to_owned(),
-    }, Simple {
-        a: "art".to_owned(),
-        b: "bold".to_owned(),
-    }];
+    let expected = vec![
+        Simple {
+            a: "apple".to_owned(),
+            b: "banana".to_owned(),
+        },
+        Simple {
+            a: "art".to_owned(),
+            b: "bold".to_owned(),
+        },
+    ];
 
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn deserialize_pipelined_single_hmap() {
-    let values =
-        Value::Bulk(vec![
-            Value::Bulk(vec![
-                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
-                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
-            ]),
-        ]);
-
+    let values = Value::Bulk(vec![Value::Bulk(vec![
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
+    ])]);
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct Simple {
@@ -349,8 +372,10 @@ fn deserialize_pipelined_single_hmap() {
 #[test]
 fn deserialize_struct_with_newtype_field() {
     let v = vec![
-        Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec()),
-        Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
     ];
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -384,18 +409,15 @@ fn deserialize_byte_buf() {
 
 #[test]
 fn deserialize_pipelined_single_hmap_newtype_fields() {
-
     #[derive(Debug, Deserialize, PartialEq)]
     struct Fruit(String);
 
-    let values =
-        Value::Bulk(vec![
-            Value::Bulk(vec![
-                Value::Data(b"a".to_vec()), Value::Data(b"apple".to_vec()),
-                Value::Data(b"b".to_vec()), Value::Data(b"banana".to_vec())
-            ]),
-        ]);
-
+    let values = Value::Bulk(vec![Value::Bulk(vec![
+        Value::Data(b"a".to_vec()),
+        Value::Data(b"apple".to_vec()),
+        Value::Data(b"b".to_vec()),
+        Value::Data(b"banana".to_vec()),
+    ])]);
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct Simple {
@@ -426,15 +448,19 @@ type MapMapList = ::std::collections::HashMap<String, Details>;
 #[test]
 fn deserialize_nested_map_map_list() {
     let value = Value::Bulk(vec![
-        Value::Data(b"key".to_vec()), Value::Bulk(vec![
-            Value::Data(b"count".to_vec()), Value::Data(b"4".to_vec()),
-            Value::Data(b"time".to_vec()), Value::Data(b"1473359995".to_vec()),
-            Value::Data(b"ids".to_vec()), Value::Bulk(vec![
+        Value::Data(b"key".to_vec()),
+        Value::Bulk(vec![
+            Value::Data(b"count".to_vec()),
+            Value::Data(b"4".to_vec()),
+            Value::Data(b"time".to_vec()),
+            Value::Data(b"1473359995".to_vec()),
+            Value::Data(b"ids".to_vec()),
+            Value::Bulk(vec![
                 Value::Data(b"00000000-0000-0000-0000-000000000000".to_vec()),
                 Value::Data(b"00000000-0000-0000-0000-000000000001".to_vec()),
                 Value::Data(b"00000000-0000-0000-0000-000000000002".to_vec()),
-            ])
-        ])
+            ]),
+        ]),
     ]);
 
     let de = Deserializer::new(value);
@@ -443,9 +469,14 @@ fn deserialize_nested_map_map_list() {
     let nest = map.get("key").unwrap();
     assert_eq!(nest.count, 4);
     assert_eq!(nest.time, 1473359995);
-    assert_eq!(&nest.ids[..], &[String::from("00000000-0000-0000-0000-000000000000"),
-                                String::from("00000000-0000-0000-0000-000000000001"),
-                                String::from("00000000-0000-0000-0000-000000000002")]);
+    assert_eq!(
+        &nest.ids[..],
+        &[
+            String::from("00000000-0000-0000-0000-000000000000"),
+            String::from("00000000-0000-0000-0000-000000000001"),
+            String::from("00000000-0000-0000-0000-000000000002")
+        ]
+    );
 }
 
 #[test]
