@@ -53,7 +53,7 @@ impl error::Error for Error {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             Error::FromUtf8(ref err) => Some(err),
             Error::ParseInt(ref err) => Some(err),
