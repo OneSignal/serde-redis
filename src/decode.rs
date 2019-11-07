@@ -578,3 +578,60 @@ impl<'de> de::EnumAccess<'de> for EnumVisitor {
         ))
     }
 }
+
+use serde::de::{Deserialize, Visitor};
+use std::marker::PhantomData;
+use std::str::FromStr;
+#[derive(Debug, PartialEq)]
+pub struct Wrapper<T: FromStr>(pub T);
+
+struct WrapperVisitor<T: FromStr> {
+    t: PhantomData<T>,
+}
+
+impl<T: FromStr> WrapperVisitor<T> {
+    fn new() -> Self {
+        Self { t: PhantomData }
+    }
+}
+
+impl<'de, T> Visitor<'de> for WrapperVisitor<T>
+where
+    T: FromStr + Deserialize<'de>,
+{
+    // The type that our Visitor is going to produce.
+    type Value = Wrapper<T>;
+
+    // Format a message stating what data this Visitor expects to receive.
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a byte buf")
+    }
+
+    fn visit_byte_buf<E>(self, v: Vec<u8>) -> ::std::result::Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        String::from_utf8(v)
+            .map_err(|_| serde::de::Error::custom("invalid utf8"))
+            .and_then(|v| {
+                v.parse::<T>()
+                    .map_err(|_| serde::de::Error::custom("could not parse"))
+            })
+            .map(Wrapper)
+    }
+}
+
+// This is the trait that informs Serde how to deserialize MyMap.
+impl<'de, T> Deserialize<'de> for Wrapper<T>
+where
+    T: FromStr + Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        // Instantiate our Visitor and ask the Deserializer to drive
+        // it over the input data, resulting in an instance of MyMap.
+        deserializer.deserialize_any(WrapperVisitor::<T>::new())
+    }
+}

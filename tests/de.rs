@@ -9,7 +9,7 @@ extern crate serde_redis;
 use std::collections::HashMap;
 
 use serde::Deserialize;
-use serde_redis::Deserializer;
+use serde_redis::{decode::Wrapper, Deserializer};
 
 use redis::Value;
 
@@ -249,6 +249,44 @@ fn deserialize_complex_struct() {
         opt: Some("yes".to_owned()),
         not_present: None,
         s: "yarn".to_owned(),
+    };
+
+    let de = Deserializer::new(Value::Bulk(v));
+    let actual: Complex = Deserialize::deserialize(de).unwrap();
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn deserialize_flattened_struct() {
+    let v = vec![
+        Value::Data(b"num".to_vec()),
+        Value::Data(b"10".to_vec()),
+        Value::Data(b"other_num".to_vec()),
+        Value::Data(b"5".to_vec()),
+        Value::Data(b"s".to_vec()),
+        Value::Data(b"yarn".to_vec()),
+    ];
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Flattened {
+        other_num: Wrapper<i32>,
+        s: String,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Complex {
+        num: usize,
+        #[serde(flatten)]
+        flattened: Flattened,
+    }
+
+    let expected = Complex {
+        num: 10,
+        flattened: Flattened {
+            other_num: Wrapper(5),
+            s: "yarn".to_owned(),
+        },
     };
 
     let de = Deserializer::new(Value::Bulk(v));
