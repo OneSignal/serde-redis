@@ -9,7 +9,7 @@ extern crate serde_redis;
 use std::collections::HashMap;
 
 use serde::Deserialize;
-use serde_redis::Deserializer;
+use serde_redis::{from_redis_value, Deserializer};
 
 use redis::Value;
 
@@ -486,4 +486,66 @@ fn deserialize_nested_item() {
 
     let de = Deserializer::new(value);
     let _hellos: Vec<String> = Deserialize::deserialize(de).unwrap();
+}
+
+#[test]
+fn test_flatten_inner() {
+    /*
+    [INFO tarpaulin] Coverage Results:
+    || Tested/Total Lines:
+    || src/decode.rs: 39/187
+    || src/lib.rs: 2/14
+    || tests/de.rs: 6/250
+    ||
+    10.42% coverage, 47/451 lines covered
+    */
+    #[derive(Deserialize, Debug)]
+    struct Foo {
+        id: u32,
+    }
+
+    #[derive(Deserialize, Debug)]
+    struct Wrapped {
+        #[serde(flatten)]
+        foo: Foo,
+    }
+
+    let value = Value::Bulk(vec![
+        Value::Data(b"id".to_vec()),
+        Value::Data(b"3".to_vec()),
+    ]);
+
+    let foo: Foo = from_redis_value(value).unwrap();
+    dbg!(foo);
+}
+
+#[test]
+fn test_flatten_outer() {
+    /*
+    [INFO tarpaulin] Coverage Results:
+    || Tested/Total Lines:
+    || src/decode.rs: 41/187
+    || src/lib.rs: 2/14
+    || tests/de.rs: 5/250
+    ||
+    10.64% coverage, 48/451 lines covered
+    */
+    #[derive(Deserialize, Debug)]
+    struct Foo {
+        id: u32,
+    }
+
+    #[derive(Deserialize, Debug)]
+    struct Wrapped {
+        #[serde(flatten)]
+        foo: Foo,
+    }
+
+    let value = Value::Bulk(vec![
+        Value::Data(b"id".to_vec()),
+        Value::Data(b"3".to_vec()),
+    ]);
+
+    let foo: Wrapped = from_redis_value(value).unwrap();
+    dbg!(foo);
 }

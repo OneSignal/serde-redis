@@ -23,6 +23,7 @@ pub enum Error {
     FromUtf8(string::FromUtf8Error),
     ParseInt(num::ParseIntError),
     ParseFloat(num::ParseFloatError),
+    AnyUnsupported,
 }
 
 impl Error {
@@ -50,6 +51,7 @@ impl error::Error for Error {
             Error::FromUtf8(ref err) => err.description(),
             Error::ParseInt(ref err) => err.description(),
             Error::ParseFloat(ref err) => err.description(),
+            Error::AnyUnsupported => "Deserializer::deserialize_any is unsupported",
         }
     }
 
@@ -83,6 +85,10 @@ impl fmt::Display for Error {
             Error::FromUtf8(ref e) => write!(f, "{}", e),
             Error::ParseInt(ref e) => write!(f, "{}", e),
             Error::ParseFloat(ref e) => write!(f, "{}", e),
+            Error::AnyUnsupported => write!(
+                f,
+                "Tried to deserialize using serde::deserialize_any, which is not supported"
+            ),
         }
     }
 }
@@ -257,12 +263,11 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     type Error = Error;
 
     #[inline]
-    fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        let buf = self.next_bytes()?;
-        visitor.visit_byte_buf(buf)
+        Err(Error::AnyUnsupported)
     }
 
     #[inline]
