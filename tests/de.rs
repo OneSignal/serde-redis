@@ -9,7 +9,7 @@ extern crate serde_redis;
 use std::collections::HashMap;
 
 use serde::Deserialize;
-use serde_redis::{from_redis_value, Deserializer};
+use serde_redis::Deserializer;
 
 use redis::Value;
 
