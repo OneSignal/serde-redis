@@ -1,10 +1,11 @@
+use redis::Value;
+use serde::{self, de};
+use std::borrow::Cow;
 use std::fmt::{self, Display};
 use std::iter::Peekable;
-use std::{error, num, slice, str, vec};
+use std::{error, num, str, string, vec};
 
-use redis::Value;
-
-use serde::{self, de};
+use crate::cow_iter::CowIter;
 
 /// Error that can be produced during deserialization
 #[derive(Debug)]
@@ -17,7 +18,8 @@ pub enum Error {
     DuplicateField(&'static str),
     DeserializeNotSupported,
     WrongValue(String),
-    FromUtf8(str::Utf8Error),
+    StrFromUtf8(str::Utf8Error),
+    StringFromUtf8(string::FromUtf8Error),
     ParseInt(num::ParseIntError),
     ParseFloat(num::ParseFloatError),
 }
@@ -36,7 +38,8 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            Error::FromUtf8(ref err) => Some(err),
+            Error::StrFromUtf8(ref err) => Some(err),
+            Error::StringFromUtf8(ref err) => Some(err),
             Error::ParseInt(ref err) => Some(err),
             Error::ParseFloat(ref err) => Some(err),
             _ => None,
@@ -61,7 +64,8 @@ impl fmt::Display for Error {
             Error::DuplicateField(ref field) => write!(f, "duplicate field {:?}", field),
             Error::DeserializeNotSupported => write!(f, "Deserialization option not supported"),
             Error::WrongValue(ref value_type) => write!(f, "Got unexpected value: {}", value_type),
-            Error::FromUtf8(ref e) => write!(f, "{}", e),
+            Error::StrFromUtf8(ref e) => write!(f, "{}", e),
+            Error::StringFromUtf8(ref e) => write!(f, "{}", e),
             Error::ParseInt(ref e) => write!(f, "{}", e),
             Error::ParseFloat(ref e) => write!(f, "{}", e),
         }
@@ -94,7 +98,13 @@ impl de::Error for Error {
 
 impl From<str::Utf8Error> for Error {
     fn from(err: str::Utf8Error) -> Error {
-        Error::FromUtf8(err)
+        Error::StrFromUtf8(err)
+    }
+}
+
+impl From<string::FromUtf8Error> for Error {
+    fn from(err: string::FromUtf8Error) -> Error {
+        Error::StringFromUtf8(err)
     }
 }
 
@@ -121,23 +131,37 @@ impl From<num::ParseFloatError> for Error {
 /// first be placed in a Vec.
 #[derive(Debug)]
 pub struct Deserializer<'a> {
-    values: Peekable<vec::IntoIter<&'a Value>>,
+    values: Peekable<vec::IntoIter<Cow<'a, Value>>>,
 }
 
 pub trait AsValueVec<'a> {
-    fn as_value_vec(self) -> Vec<&'a Value>;
+    fn as_value_vec(self) -> Vec<Cow<'a, Value>>;
 }
 
 impl<'a> AsValueVec<'a> for &'a Value {
     #[inline]
-    fn as_value_vec(self) -> Vec<&'a Value> {
+    fn as_value_vec(self) -> Vec<Cow<'a, Value>> {
+        vec![Cow::Borrowed(self)]
+    }
+}
+
+impl<'a> AsValueVec<'a> for Cow<'a, Value> {
+    #[inline]
+    fn as_value_vec(self) -> Vec<Cow<'a, Value>> {
         vec![self]
     }
 }
 
-impl<'a> AsValueVec<'a> for Vec<&'a Value> {
+impl AsValueVec<'static> for Value {
     #[inline]
-    fn as_value_vec(self) -> Vec<&'a Value> {
+    fn as_value_vec(self) -> Vec<Cow<'static, Value>> {
+        vec![Cow::Owned(self)]
+    }
+}
+
+impl<'a> AsValueVec<'a> for Vec<Cow<'a, Value>> {
+    #[inline]
+    fn as_value_vec(self) -> Vec<Cow<'a, Value>> {
         self
     }
 }
@@ -157,28 +181,30 @@ impl<'a> Deserializer<'a> {
     pub fn peek(&mut self) -> Option<&Value> {
         let val = self.values.peek()?;
 
-        Some(*val)
+        Some(val)
     }
 
     /// Return the next value
     #[inline]
-    pub fn next(&mut self) -> Result<&'a Value> {
+    pub fn next(&mut self) -> Result<Cow<'a, Value>> {
         match self.values.next() {
             Some(value) => Ok(value),
             None => Err(Error::EndOfStream),
         }
     }
 
-    pub fn next_bulk(&mut self) -> Result<&Vec<Value>> {
+    pub fn next_bulk(&mut self) -> Result<Cow<'a, Vec<Value>>> {
         match self.next()? {
-            Value::Bulk(values) => Ok(values),
+            Cow::Owned(Value::Bulk(values)) => Ok(Cow::Owned(values)),
+            Cow::Borrowed(Value::Bulk(values)) => Ok(Cow::Borrowed(values)),
             v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v))),
         }
     }
 
-    pub fn next_bytes(&mut self) -> Result<&Vec<u8>> {
+    pub fn next_bytes(&mut self) -> Result<Cow<'a, Vec<u8>>> {
         match self.next()? {
-            Value::Data(bytes) => Ok(bytes),
+            Cow::Owned(Value::Data(bytes)) => Ok(Cow::Owned(bytes)),
+            Cow::Borrowed(Value::Data(bytes)) => Ok(Cow::Borrowed(bytes)),
             v => {
                 let msg = format!("Expected bytes, but got {:?}", v);
                 return Err(Error::wrong_value(msg));
@@ -186,10 +212,11 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    pub fn read_string(&mut self) -> Result<&str> {
+    pub fn read_string(&mut self) -> Result<Cow<'a, str>> {
         let redis_value = self.next()?;
         Ok(match redis_value {
-            Value::Data(bytes) => str::from_utf8(bytes)?,
+            Cow::Owned(Value::Data(bytes)) => Cow::Owned(String::from_utf8(bytes)?),
+            Cow::Borrowed(Value::Data(bytes)) => Cow::Borrowed(str::from_utf8(bytes)?),
             _ => {
                 let msg = format!("Expected Data, got {:?}", &redis_value);
                 return Err(Error::wrong_value(msg));
@@ -207,11 +234,16 @@ macro_rules! impl_num {
         {
             let redis_value = self.next()?;
             let value = match redis_value {
-                Value::Data(bytes) => {
+                Cow::Borrowed(Value::Data(bytes)) => {
                     let s = str::from_utf8(bytes)?;
                     s.parse::<$ty>()?
                 }
-                Value::Int(i) => *i as $ty,
+                Cow::Owned(Value::Data(bytes)) => {
+                    let s = String::from_utf8(bytes)?;
+                    s.parse::<$ty>()?
+                }
+                Cow::Borrowed(Value::Int(i)) => *i as $ty,
+                Cow::Owned(Value::Int(i)) => i as $ty,
                 _ => {
                     let msg = format!("Expected Data or Int, got {:?}", &redis_value);
                     return Err(Error::wrong_value(msg));
@@ -245,7 +277,10 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
         V: de::Visitor<'de>,
     {
         let buf = self.next_bytes()?;
-        visitor.visit_bytes(buf)
+        match buf {
+            Cow::Borrowed(buf) => visitor.visit_bytes(buf),
+            Cow::Owned(buf) => visitor.visit_byte_buf(buf),
+        }
     }
 
     #[inline]
@@ -254,7 +289,10 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
         V: de::Visitor<'de>,
     {
         let s = self.read_string()?;
-        visitor.visit_str(s)
+        match s {
+            Cow::Borrowed(s) => visitor.visit_str(s),
+            Cow::Owned(s) => visitor.visit_string(s),
+        }
     }
 
     #[inline]
@@ -263,7 +301,10 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
         V: de::Visitor<'de>,
     {
         let s = self.read_string()?;
-        visitor.visit_str(s)
+        match s {
+            Cow::Borrowed(s) => visitor.visit_str(s),
+            Cow::Owned(s) => visitor.visit_string(s),
+        }
     }
 
     impl_num!(u8, deserialize_u8, visit_u8);
@@ -291,7 +332,7 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
     {
         let s = self.read_string()?;
 
-        let b = match s {
+        let b = match s.as_ref() {
             "1" | "true" | "True" => true,
             "0" | "false" | "False" => false,
             _ => {
@@ -319,7 +360,10 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
         V: de::Visitor<'de>,
     {
         let bytes = self.next_bytes()?;
-        visitor.visit_bytes(bytes)
+        match bytes {
+            Cow::Borrowed(bytes) => visitor.visit_bytes(bytes),
+            Cow::Owned(bytes) => visitor.visit_byte_buf(bytes),
+        }
     }
 
     #[inline]
@@ -350,7 +394,7 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
     {
         let values = self.next_bulk()?;
         visitor.visit_seq(SeqVisitor {
-            iter: values.into_iter(),
+            iter: CowIter::new(values),
         })
     }
 
@@ -361,7 +405,7 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
     {
         let values = self.next_bulk()?;
         visitor.visit_map(MapVisitor {
-            iter: values.into_iter(),
+            iter: CowIter::new(values),
         })
     }
 
@@ -406,7 +450,7 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
     {
         visitor.visit_enum(EnumVisitor {
             variant: self.next()?,
-            content: &Value::Nil,
+            content: Cow::Owned(Value::Nil),
         })
     }
 
@@ -453,7 +497,7 @@ impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
 }
 
 struct SeqVisitor<'a> {
-    iter: slice::Iter<'a, Value>,
+    iter: CowIter<'a>,
 }
 
 impl<'a, 'de> de::SeqAccess<'de> for SeqVisitor<'a> {
@@ -475,7 +519,7 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqVisitor<'a> {
 }
 
 struct MapVisitor<'a> {
-    iter: slice::Iter<'a, Value>,
+    iter: CowIter<'a>,
 }
 
 impl<'a, 'de> serde::de::MapAccess<'de> for MapVisitor<'a> {
@@ -504,7 +548,7 @@ impl<'a, 'de> serde::de::MapAccess<'de> for MapVisitor<'a> {
 }
 
 struct VariantVisitor<'a> {
-    value: &'a Value,
+    value: Cow<'a, Value>,
 }
 
 impl<'a, 'de> serde::de::VariantAccess<'de> for VariantVisitor<'a> {
@@ -541,8 +585,8 @@ impl<'a, 'de> serde::de::VariantAccess<'de> for VariantVisitor<'a> {
 }
 
 struct EnumVisitor<'a> {
-    variant: &'a Value,
-    content: &'a Value,
+    variant: Cow<'a, Value>,
+    content: Cow<'a, Value>,
 }
 
 impl<'a, 'de> de::EnumAccess<'de> for EnumVisitor<'a> {

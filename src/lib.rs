@@ -1,20 +1,21 @@
-use std::borrow::Borrow;
-
 // `encode` and `decode` are used instead of `ser` and `de` to avoid confusion with the serder
 // Serializer and Deserializer traits which occupy a similar namespace.
+mod cow_iter;
 pub mod decode;
 pub mod encode;
+mod into_cow;
 
 pub use crate::decode::Deserializer;
 pub use crate::encode::Serializer;
+pub use crate::into_cow::IntoCow;
 
 /// Use serde Deserialize to build `T` from a `redis::Value`
 pub fn from_redis_value<'de, T, RV>(rv: RV) -> decode::Result<T>
 where
     T: serde::de::Deserialize<'de>,
-    RV: Borrow<redis::Value>,
+    RV: IntoCow<'de>,
 {
-    let value = rv.borrow();
+    let value = rv.into_cow();
     serde::de::Deserialize::deserialize(Deserializer::new(value))
 }
 
