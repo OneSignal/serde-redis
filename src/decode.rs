@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 use std::iter::Peekable;
-use std::{error, num, string, vec};
+use std::{error, num, slice, str, vec};
 
 use redis::Value;
 
@@ -17,7 +17,7 @@ pub enum Error {
     DuplicateField(&'static str),
     DeserializeNotSupported,
     WrongValue(String),
-    FromUtf8(string::FromUtf8Error),
+    FromUtf8(str::Utf8Error),
     ParseInt(num::ParseIntError),
     ParseFloat(num::ParseFloatError),
 }
@@ -92,8 +92,8 @@ impl de::Error for Error {
     }
 }
 
-impl From<string::FromUtf8Error> for Error {
-    fn from(err: string::FromUtf8Error) -> Error {
+impl From<str::Utf8Error> for Error {
+    fn from(err: str::Utf8Error) -> Error {
         Error::FromUtf8(err)
     }
 }
@@ -120,61 +120,63 @@ impl From<num::ParseFloatError> for Error {
 /// If creating a Deserializer manually (ie not using `from_redis_value()`), the redis values must
 /// first be placed in a Vec.
 #[derive(Debug)]
-pub struct Deserializer {
-    values: Peekable<vec::IntoIter<Value>>,
+pub struct Deserializer<'a> {
+    values: Peekable<vec::IntoIter<&'a Value>>,
 }
 
-pub trait IntoValueVec {
-    fn into_value_vec(self) -> Vec<Value>;
+pub trait AsValueVec<'a> {
+    fn as_value_vec(self) -> Vec<&'a Value>;
 }
 
-impl IntoValueVec for Value {
+impl<'a> AsValueVec<'a> for &'a Value {
     #[inline]
-    fn into_value_vec(self) -> Vec<Value> {
+    fn as_value_vec(self) -> Vec<&'a Value> {
         vec![self]
     }
 }
 
-impl IntoValueVec for Vec<Value> {
+impl<'a> AsValueVec<'a> for Vec<&'a Value> {
     #[inline]
-    fn into_value_vec(self) -> Vec<Value> {
+    fn as_value_vec(self) -> Vec<&'a Value> {
         self
     }
 }
 
-impl Deserializer {
-    pub fn new<V>(values: V) -> Deserializer
+impl<'a> Deserializer<'a> {
+    pub fn new<V>(values: V) -> Self
     where
-        V: IntoValueVec,
+        V: AsValueVec<'a>,
     {
         Deserializer {
-            values: values.into_value_vec().into_iter().peekable(),
+            values: values.as_value_vec().into_iter().peekable(),
         }
     }
 
     /// Returns a reference to the next value
     #[inline]
     pub fn peek(&mut self) -> Option<&Value> {
-        self.values.peek()
+        let val = self.values.peek()?;
+
+        Some(*val)
     }
 
     /// Return the next value
     #[inline]
-    pub fn next(&mut self) -> Result<Value> {
+    pub fn next(&mut self) -> Result<&'a Value> {
         match self.values.next() {
             Some(value) => Ok(value),
             None => Err(Error::EndOfStream),
         }
     }
 
-    pub fn next_bulk(&mut self) -> Result<Vec<Value>> {
+    pub fn next_bulk(&mut self) -> Result<&Vec<Value>> {
         match self.next()? {
             Value::Bulk(values) => Ok(values),
             v @ _ => Err(Error::wrong_value(format!("expected bulk but got {:?}", v))),
         }
     }
 
-    pub fn next_bytes(&mut self) -> Result<Vec<u8>> {
+    pub fn next_bytes(&mut self) -> Result<&Vec<u8>> {
         match self.next()? {
             Value::Data(bytes) => Ok(bytes),
             v => {
@@ -184,10 +186,10 @@ impl Deserializer {
         }
     }
 
-    pub fn read_string(&mut self) -> Result<String> {
+    pub fn read_string(&mut self) -> Result<&str> {
         let redis_value = self.next()?;
         Ok(match redis_value {
-            Value::Data(bytes) => String::from_utf8(bytes)?,
+            Value::Data(bytes) => str::from_utf8(bytes)?,
             _ => {
                 let msg = format!("Expected Data, got {:?}", &redis_value);
                 return Err(Error::wrong_value(msg));
@@ -206,10 +208,10 @@ macro_rules! impl_num {
             let redis_value = self.next()?;
             let value = match redis_value {
                 Value::Data(bytes) => {
-                    let s = String::from_utf8(bytes)?;
+                    let s = str::from_utf8(bytes)?;
                     s.parse::<$ty>()?
                 }
-                Value::Int(i) => i as $ty,
+                Value::Int(i) => *i as $ty,
                 _ => {
                     let msg = format!("Expected Data or Int, got {:?}", &redis_value);
                     return Err(Error::wrong_value(msg));
@@ -234,7 +236,7 @@ macro_rules! default_deserialize {
     }
 }
 
-impl<'de> serde::Deserializer<'de> for Deserializer {
+impl<'a, 'de> serde::Deserializer<'de> for Deserializer<'a> {
     type Error = Error;
 
     #[inline]
@@ -243,7 +245,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         V: de::Visitor<'de>,
     {
         let buf = self.next_bytes()?;
-        visitor.visit_byte_buf(buf)
+        visitor.visit_bytes(buf)
     }
 
     #[inline]
@@ -252,7 +254,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         V: de::Visitor<'de>,
     {
         let s = self.read_string()?;
-        visitor.visit_string(s)
+        visitor.visit_str(s)
     }
 
     #[inline]
@@ -261,7 +263,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         V: de::Visitor<'de>,
     {
         let s = self.read_string()?;
-        visitor.visit_str(&s[..])
+        visitor.visit_str(s)
     }
 
     impl_num!(u8, deserialize_u8, visit_u8);
@@ -289,7 +291,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     {
         let s = self.read_string()?;
 
-        let b = match s.as_str() {
+        let b = match s {
             "1" | "true" | "True" => true,
             "0" | "false" | "False" => false,
             _ => {
@@ -317,7 +319,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
         V: de::Visitor<'de>,
     {
         let bytes = self.next_bytes()?;
-        visitor.visit_byte_buf(bytes)
+        visitor.visit_bytes(bytes)
     }
 
     #[inline]
@@ -404,7 +406,7 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     {
         visitor.visit_enum(EnumVisitor {
             variant: self.next()?,
-            content: Value::Nil,
+            content: &Value::Nil,
         })
     }
 
@@ -450,11 +452,11 @@ impl<'de> serde::Deserializer<'de> for Deserializer {
     }
 }
 
-struct SeqVisitor {
-    iter: vec::IntoIter<Value>,
+struct SeqVisitor<'a> {
+    iter: slice::Iter<'a, Value>,
 }
 
-impl<'de> de::SeqAccess<'de> for SeqVisitor {
+impl<'a, 'de> de::SeqAccess<'de> for SeqVisitor<'a> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
@@ -472,11 +474,11 @@ impl<'de> de::SeqAccess<'de> for SeqVisitor {
     }
 }
 
-struct MapVisitor {
-    iter: vec::IntoIter<Value>,
+struct MapVisitor<'a> {
+    iter: slice::Iter<'a, Value>,
 }
 
-impl<'de> serde::de::MapAccess<'de> for MapVisitor {
+impl<'a, 'de> serde::de::MapAccess<'de> for MapVisitor<'a> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -501,11 +503,11 @@ impl<'de> serde::de::MapAccess<'de> for MapVisitor {
     }
 }
 
-struct VariantVisitor {
-    value: Value,
+struct VariantVisitor<'a> {
+    value: &'a Value,
 }
 
-impl<'de> serde::de::VariantAccess<'de> for VariantVisitor {
+impl<'a, 'de> serde::de::VariantAccess<'de> for VariantVisitor<'a> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
@@ -538,14 +540,14 @@ impl<'de> serde::de::VariantAccess<'de> for VariantVisitor {
     }
 }
 
-struct EnumVisitor {
-    variant: Value,
-    content: Value,
+struct EnumVisitor<'a> {
+    variant: &'a Value,
+    content: &'a Value,
 }
 
-impl<'de> de::EnumAccess<'de> for EnumVisitor {
+impl<'a, 'de> de::EnumAccess<'de> for EnumVisitor<'a> {
     type Error = Error;
-    type Variant = VariantVisitor;
+    type Variant = VariantVisitor<'a>;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
     where
