@@ -1,9 +1,6 @@
-use std::error;
 use std::fmt::{self, Display};
 use std::iter::Peekable;
-use std::num;
-use std::string;
-use std::vec;
+use std::{error, num, string, vec};
 
 use redis::Value;
 
@@ -37,23 +34,7 @@ impl Error {
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::Custom(_) => "custom error when decoding redis values",
-            Error::EndOfStream => "end of redis value stream",
-            Error::UnknownField(..) => "unknown field",
-            Error::UnknownVariant(..) => "unknown variant",
-            Error::MissingField(_) => "missing field",
-            Error::DuplicateField(_) => "duplicate field",
-            Error::DeserializeNotSupported => "unsupported deserialization operation",
-            Error::WrongValue(_) => "expected value of different type",
-            Error::FromUtf8(ref err) => err.description(),
-            Error::ParseInt(ref err) => err.description(),
-            Error::ParseFloat(ref err) => err.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn error::Error> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             Error::FromUtf8(ref err) => Some(err),
             Error::ParseInt(ref err) => Some(err),
@@ -219,15 +200,15 @@ macro_rules! impl_num {
     ($ty:ty, $deserialize_method:ident, $visitor_method:ident) => {
         #[inline]
         fn $deserialize_method<V>(mut self, visitor: V) -> Result<V::Value>
-            where V: de::Visitor<'de>,
+        where
+            V: de::Visitor<'de>,
         {
-
             let redis_value = self.next()?;
             let value = match redis_value {
                 Value::Data(bytes) => {
                     let s = String::from_utf8(bytes)?;
                     s.parse::<$ty>()?
-                },
+                }
                 Value::Int(i) => i as $ty,
                 _ => {
                     let msg = format!("Expected Data or Int, got {:?}", &redis_value);
@@ -237,7 +218,7 @@ macro_rules! impl_num {
 
             visitor.$visitor_method(value)
         }
-    }
+    };
 }
 
 macro_rules! default_deserialize {
