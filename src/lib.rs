@@ -1,20 +1,17 @@
-extern crate redis;
-extern crate serde;
-
 // `encode` and `decode` are used instead of `ser` and `de` to avoid confusion with the serder
 // Serializer and Deserializer traits which occupy a similar namespace.
 pub mod decode;
 pub mod encode;
 
-pub use decode::Deserializer;
-pub use encode::Serializer;
+pub use crate::decode::Deserializer;
+pub use crate::encode::Serializer;
 
 /// Use serde Deserialize to build `T` from a `redis::Value`
-pub fn from_redis_value<'de, T>(rv: ::redis::Value) -> decode::Result<T>
+pub fn from_redis_value<'de, T>(rv: redis::Value) -> decode::Result<T>
 where
     T: serde::de::Deserialize<'de>,
 {
-    ::serde::de::Deserialize::deserialize(Deserializer::new(rv))
+    serde::de::Deserialize::deserialize(Deserializer::new(rv))
 }
 
 pub trait RedisDeserialize<'de, T>
@@ -29,7 +26,7 @@ where
     T: serde::de::Deserialize<'de>,
 {
     fn deserialize(self) -> decode::Result<T> {
-        ::serde::de::Deserialize::deserialize(Deserializer::new(self))
+        serde::de::Deserialize::deserialize(Deserializer::new(self))
     }
 }
 
