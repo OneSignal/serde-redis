@@ -10,10 +10,10 @@ pub use crate::encode::Serializer;
 pub use crate::into_cow::IntoCow;
 
 /// Use serde Deserialize to build `T` from a `redis::Value`
-pub fn from_redis_value<'de, T, RV>(rv: RV) -> decode::Result<T>
+pub fn from_redis_value<'a, 'de, T, RV>(rv: RV) -> decode::Result<T>
 where
     T: serde::de::Deserialize<'de>,
-    RV: IntoCow<'de>,
+    RV: IntoCow<'a>,
 {
     let value = rv.into_cow();
     serde::de::Deserialize::deserialize(Deserializer::new(value))
