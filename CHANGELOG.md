@@ -1,5 +1,9 @@
 # Changes
 
+## 0.9.0
+
+- Update to use redis-rs 0.16
+
 ## 0.8.0
 
 - Support for borrowing the value passed to deserialization functions
