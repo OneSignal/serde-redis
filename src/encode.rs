@@ -1,20 +1,38 @@
 use redis::Value;
 use serde::{self, ser, Serialize};
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display};
 use std::iter::Peekable;
 use std::{error, num, str, string, vec};
 
 pub struct Serializer {
-    output: Vec<Value>,
+    output: HashMap<String, Value>,
 }
 
 pub fn to_vec<T>(value: &T) -> Result<Vec<Value>>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer { output: Vec::new() };
+    let mut serializer = Serializer {
+        output: HashMap::new(),
+    };
+    value.serialize(&mut serializer)?;
+    let mut vec = Vec::new();
+    for (k, v) in serializer.output {
+        vec.push(Value::Data(k.as_bytes().to_vec()));
+        vec.push(v);
+    }
+    Ok(vec)
+}
+
+pub fn to_map<T>(value: &T) -> Result<HashMap<String, Value>>
+where
+    T: Serialize,
+{
+    let mut serializer = Serializer {
+        output: HashMap::new(),
+    };
     value.serialize(&mut serializer)?;
     Ok(serializer.output)
 }
@@ -53,7 +71,7 @@ impl ser::Error for Error {
 }
 
 impl<'a> serde::Serializer for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     type SerializeSeq = Self;
@@ -64,78 +82,77 @@ impl<'a> serde::Serializer for &'a mut Serializer {
     type SerializeStruct = Self;
     type SerializeStructVariant = Self;
 
-    fn serialize_bool(self, v: bool) -> Result<()> {
+    fn serialize_bool(self, v: bool) -> Result<Value> {
         todo!()
     }
-    fn serialize_i8(self, v: i8) -> Result<()> {
-        todo!()
-    }
-
-    fn serialize_i16(self, v: i16) -> Result<()> {
+    fn serialize_i8(self, v: i8) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_i32(self, v: i32) -> Result<()> {
+    fn serialize_i16(self, v: i16) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_i64(self, v: i64) -> Result<()> {
+    fn serialize_i32(self, v: i32) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_u8(self, v: u8) -> Result<()> {
+    fn serialize_i64(self, v: i64) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_u16(self, v: u16) -> Result<()> {
+    fn serialize_u8(self, v: u8) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_u32(self, v: u32) -> Result<()> {
+    fn serialize_u16(self, v: u16) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_u64(self, v: u64) -> Result<()> {
+    fn serialize_u32(self, v: u32) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_f32(self, v: f32) -> Result<()> {
+    fn serialize_u64(self, v: u64) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_f64(self, v: f64) -> Result<()> {
+    fn serialize_f32(self, v: f32) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_char(self, v: char) -> Result<()> {
+    fn serialize_f64(self, v: f64) -> Result<Value> {
+        todo!()
+    }
+
+    fn serialize_char(self, v: char) -> Result<Value> {
         self.serialize_str(&v.to_string())
     }
 
-    fn serialize_str(self, v: &str) -> Result<()> {
-        self.output.push(Value::Data(v.as_bytes().to_vec()));
-        Ok(())
+    fn serialize_str(self, v: &str) -> Result<Value> {
+        Ok(Value::Data(v.as_bytes().to_vec()))
     }
 
-    fn serialize_bytes(self, v: &[u8]) -> Result<()> {
+    fn serialize_bytes(self, v: &[u8]) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_none(self) -> Result<()> {
+    fn serialize_none(self) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_some<T>(self, value: &T) -> Result<()>
+    fn serialize_some<T>(self, value: &T) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
         todo!()
     }
 
-    fn serialize_unit(self) -> Result<()> {
+    fn serialize_unit(self) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Value> {
         todo!()
     }
 
@@ -144,11 +161,11 @@ impl<'a> serde::Serializer for &'a mut Serializer {
         _name: &'static str,
         _variant_index: u32,
         variant: &'static str,
-    ) -> Result<()> {
+    ) -> Result<Value> {
         todo!()
     }
 
-    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<()>
+    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
@@ -161,7 +178,7 @@ impl<'a> serde::Serializer for &'a mut Serializer {
         _variant_index: u32,
         variant: &'static str,
         value: &T,
-    ) -> Result<()>
+    ) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
@@ -214,7 +231,7 @@ impl<'a> serde::Serializer for &'a mut Serializer {
 }
 
 impl<'a> ser::SerializeSeq for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
@@ -224,13 +241,13 @@ impl<'a> ser::SerializeSeq for &'a mut Serializer {
         todo!()
     }
 
-    fn end(self) -> Result<()> {
+    fn end(self) -> Result<Value> {
         todo!()
     }
 }
 
 impl<'a> ser::SerializeTuple for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
@@ -240,13 +257,13 @@ impl<'a> ser::SerializeTuple for &'a mut Serializer {
         todo!()
     }
 
-    fn end(self) -> Result<()> {
+    fn end(self) -> Result<Value> {
         todo!()
     }
 }
 
 impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
@@ -256,13 +273,13 @@ impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
         todo!()
     }
 
-    fn end(self) -> Result<()> {
+    fn end(self) -> Result<Value> {
         todo!()
     }
 }
 
 impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
@@ -272,13 +289,13 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
         todo!()
     }
 
-    fn end(self) -> Result<()> {
+    fn end(self) -> Result<Value> {
         todo!()
     }
 }
 
 impl<'a> ser::SerializeMap for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_key<T>(&mut self, key: &T) -> Result<()>
@@ -295,7 +312,7 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
         todo!()
     }
 
-    fn end(self) -> Result<()> {
+    fn end(self) -> Result<Value> {
         todo!()
     }
 }
@@ -303,27 +320,25 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
 // Structs are like maps in which the keys are constrained to be compile-time
 // constant strings.
 impl<'a> ser::SerializeStruct for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        key.serialize(&mut **self)?;
-        value.serialize(&mut **self)?;
+        let value = value.serialize(&mut **self)?;
+        self.output.insert(key.to_string(), value);
         Ok(())
     }
 
-    fn end(self) -> Result<()> {
-        Ok(())
+    fn end(self) -> Result<Value> {
+        Ok(Value::Nil)
     }
 }
 
-// Similar to `SerializeTupleVariant`, here the `end` method is responsible for
-// closing both of the curly braces opened by `serialize_struct_variant`.
 impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
-    type Ok = ();
+    type Ok = Value;
     type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
@@ -335,7 +350,7 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
         Ok(())
     }
 
-    fn end(self) -> Result<()> {
-        Ok(())
+    fn end(self) -> Result<Value> {
+        Ok(Value::Nil)
     }
 }
