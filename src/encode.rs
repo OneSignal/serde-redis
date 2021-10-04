@@ -70,6 +70,15 @@ impl ser::Error for Error {
     }
 }
 
+macro_rules! impl_num {
+    ($ty:ty, $serialize_method:ident) => {
+        #[inline]
+        fn $serialize_method(self, v: $ty) -> Result<Value> {
+            Ok(Value::Data(v.to_string().as_bytes().to_vec()))
+        }
+    };
+}
+
 impl<'a> serde::Serializer for &'a mut Serializer {
     type Ok = Value;
     type Error = Error;
@@ -82,46 +91,20 @@ impl<'a> serde::Serializer for &'a mut Serializer {
     type SerializeStruct = Self;
     type SerializeStructVariant = Self;
 
+    impl_num!(u8, serialize_u8);
+    impl_num!(u16, serialize_u16);
+    impl_num!(u32, serialize_u32);
+    impl_num!(u64, serialize_u64);
+
+    impl_num!(i8, serialize_i8);
+    impl_num!(i16, serialize_i16);
+    impl_num!(i32, serialize_i32);
+    impl_num!(i64, serialize_i64);
+
+    impl_num!(f32, serialize_f32);
+    impl_num!(f64, serialize_f64);
+
     fn serialize_bool(self, v: bool) -> Result<Value> {
-        todo!()
-    }
-    fn serialize_i8(self, v: i8) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_i16(self, v: i16) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_i32(self, v: i32) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_i64(self, v: i64) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_u8(self, v: u8) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_u16(self, v: u16) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_u32(self, v: u32) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_u64(self, v: u64) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_f32(self, v: f32) -> Result<Value> {
-        todo!()
-    }
-
-    fn serialize_f64(self, v: f64) -> Result<Value> {
         todo!()
     }
 
@@ -134,26 +117,26 @@ impl<'a> serde::Serializer for &'a mut Serializer {
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Value> {
-        todo!()
+        Ok(Value::Data(v.to_vec()))
     }
 
     fn serialize_none(self) -> Result<Value> {
-        todo!()
+        Ok(Value::Nil)
     }
 
-    fn serialize_some<T>(self, value: &T) -> Result<Value>
+    fn serialize_some<T>(self, v: &T) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        v.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<Value> {
-        todo!()
+        Ok(Value::Nil)
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Value> {
-        todo!()
+        self.serialize_unit()
     }
 
     fn serialize_unit_variant(
@@ -162,14 +145,14 @@ impl<'a> serde::Serializer for &'a mut Serializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Value> {
-        todo!()
+        self.serialize_str(variant)
     }
 
     fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T>(

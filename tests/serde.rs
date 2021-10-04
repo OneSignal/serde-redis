@@ -10,14 +10,16 @@ fn test_serde_struct() {
     #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
     struct Foo {
         f1: String,
-        f2: String,
-        // f2: i32,
-        // f3: i64,
+        f2: i32,
+        f3: Option<i64>,
+        f4: Option<i128>
     }
 
     let original = Foo {
         f1: "hello world".to_owned(),
-        f2: "hi".to_owned(),
+        f2: 1,
+        f3: Some(2),
+        f4: None
     };
     let v = serde_redis::encode::to_vec(&original).unwrap();
     let data = &Value::Bulk(v);
