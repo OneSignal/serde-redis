@@ -17,9 +17,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match *self {
-            _ => None,
-        }
+        None
     }
 }
 
@@ -32,7 +30,6 @@ impl fmt::Display for Error {
 }
 
 impl ser::Error for Error {
-    /// Raised when there is general error when deserializing a type.
     fn custom<T: Display>(msg: T) -> Self {
         Error::Custom(msg.to_string())
     }
@@ -203,7 +200,7 @@ pub struct SerializeVec {
 }
 
 impl SerializeVec {
-    fn to_value(self) -> Value {
+    fn to_value(&self) -> Value {
         let buffer = self.vec.to_owned();
         Value::Bulk(buffer)
     }
