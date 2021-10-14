@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
 
-use redis::Value;
 use serde::{Deserialize, Serialize};
 use serde_redis::{Deserializer, Serializer};
 
@@ -12,21 +11,30 @@ fn test_serde_struct() {
         f1: String,
         f2: i32,
         f3: Option<i64>,
-        f4: Option<i128>
+        f4: Option<i128>,
+        f5: bool
     }
 
     let original = Foo {
         f1: "hello world".to_owned(),
         f2: 1,
         f3: Some(2),
-        f4: None
+        f4: None,
+        f5: true
     };
-    let v = serde_redis::encode::to_vec(&original).unwrap();
-    let data = &Value::Bulk(v);
-    let de = Deserializer::new(data);
+    let value = original.serialize(Serializer).unwrap();
+    let de = Deserializer::new(value);
     let decoded: Foo = Deserialize::deserialize(de).unwrap();
 
-    println!("{:?}", original);
-    println!("{:?}", decoded);
     assert_eq!(original, decoded);
+}
+
+#[test]
+fn serialize_byte_buf() {
+    let original = b"0123";
+    let value = original.serialize(Serializer).unwrap();
+    let de = Deserializer::new(value);
+    let decoded: Vec<u8> = Deserialize::deserialize(de).unwrap();
+
+    assert_eq!(original.to_vec(), decoded);
 }
