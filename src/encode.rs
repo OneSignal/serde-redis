@@ -128,12 +128,12 @@ impl<'a> serde::Serializer for Serializer {
         _name: &'static str,
         _variant_index: u32,
         _variant: &'static str,
-        _value: &T,
+        value: &T,
     ) -> Result<Value>
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
@@ -178,7 +178,7 @@ impl<'a> serde::Serializer for Serializer {
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
         Ok(SerializeVec {
-            vec: Vec::with_capacity(len),
+            vec: Vec::with_capacity(len * 2), // Make enough room for keys and values
         })
     }
 
@@ -190,7 +190,7 @@ impl<'a> serde::Serializer for Serializer {
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         Ok(SerializeVec {
-            vec: Vec::with_capacity(len),
+            vec: Vec::with_capacity(len * 2), // Make enough room for keys and values
         })
     }
 }
