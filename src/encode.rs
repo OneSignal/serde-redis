@@ -77,7 +77,10 @@ impl<'a> serde::Serializer for Serializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Value> {
-        self.serialize_str(&v.to_string())
+        let mut buf = Vec::with_capacity(v.len_utf8());
+        v.encode_utf8(&mut buf);
+
+        Ok(Value::Data(buf))
     }
 
     fn serialize_str(self, v: &str) -> Result<Value> {
