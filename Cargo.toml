@@ -10,7 +10,7 @@ documentation = "https://docs.rs/serde-redis"
 edition = "2018"
 
 [dependencies]
-redis = "0.20"
+redis = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
