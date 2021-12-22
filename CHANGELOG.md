@@ -1,5 +1,18 @@
 # Changes
 
+## 0.12.0
+
+- Update to use redis-rs 0.21
+- Update to use serde_bytes 0.11
+
+## 0.11.0
+
+- Update to use redis-rs 0.20
+
+## 0.10.0
+
+- Update to use redis-rs 0.17
+
 ## 0.9.0
 
 - Update to use redis-rs 0.16

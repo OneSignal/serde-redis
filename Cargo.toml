@@ -1,6 +1,6 @@
 [package]
 name = "serde-redis"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["Joe Wilm <joe@jwilm.com>"]
 description = "Serde deserialization for redis-rs"
 license = "MIT OR Apache-2.0"
@@ -10,9 +10,9 @@ documentation = "https://docs.rs/serde-redis"
 edition = "2018"
 
 [dependencies]
-redis = "0.20"
+redis = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
 serde_derive = "1.0"
-serde_bytes = "0.10"
+serde_bytes = "0.11"
