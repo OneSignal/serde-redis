@@ -1,5 +1,9 @@
 # Changes
 
+## 0.13.0
+
+- Update to use redis-rs 0.22
+
 ## 0.12.0
 
 - Update to use redis-rs 0.21
