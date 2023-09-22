@@ -510,3 +510,29 @@ fn deserialize_nested_item() {
     let de = Deserializer::new(&value);
     let _hellos: Vec<String> = Deserialize::deserialize(de).unwrap();
 }
+
+#[test]
+fn deserialize_values_wrapped_in_hashmap() {
+    use serde_redis::RedisDeserialize;
+
+    let mut data = HashMap::new();
+
+    data.insert("a".to_string(),Value::Data(b"apple".to_vec()));
+    data.insert("b".to_string(),Value::Data(b"banana".to_vec()));
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Simple {
+        a: String,
+        b: String,
+    }
+
+    let actual: Simple =  data.deserialize().unwrap();
+
+    let expected = Simple {
+        a: "apple".to_owned(),
+        b: "banana".to_owned(),
+    };
+
+    assert_eq!(expected, actual);
+}
+

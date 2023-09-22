@@ -9,6 +9,8 @@ pub use crate::decode::Deserializer;
 pub use crate::encode::Serializer;
 pub use crate::into_cow::IntoCow;
 
+use std::collections::HashMap;
+
 /// Use serde Deserialize to build `T` from a `redis::Value`
 pub fn from_redis_value<'a, 'de, T, RV>(rv: RV) -> decode::Result<T>
 where
@@ -32,6 +34,27 @@ where
 {
     fn deserialize(&'de self) -> decode::Result<T> {
         serde::de::Deserialize::deserialize(Deserializer::new(self))
+    }
+}
+
+impl<'de, T> RedisDeserialize<'de, T> for HashMap<String,redis::Value>
+where
+    T: serde::de::Deserialize<'de>,
+{
+    fn deserialize(&'de self) -> decode::Result<T> {
+        use redis::Value;
+
+        let mut values_vec =  vec![];
+
+        for (key, value) in self.iter() {
+            values_vec.push(Value::Data(key.as_bytes().to_vec()));
+            values_vec.push(value.clone());
+        }
+
+        let value = Value::Bulk(values_vec);
+
+
+        serde::de::Deserialize::deserialize(Deserializer::new(value))
     }
 }
 
