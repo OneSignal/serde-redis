@@ -535,4 +535,3 @@ fn deserialize_values_wrapped_in_hashmap() {
 
     assert_eq!(expected, actual);
 }
-

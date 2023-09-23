@@ -21,6 +21,14 @@ where
     serde::de::Deserialize::deserialize(Deserializer::new(value))
 }
 
+/// Use serde Deserialize to build `T` from a `HashMap<String, redis::Value>`
+pub fn from_hashmap_value<'de, T>(rv: &'de  HashMap<String, redis::Value>) -> decode::Result<T>
+where
+    T: serde::de::Deserialize<'de>,
+{
+    RedisDeserialize::deserialize(rv)
+}
+
 pub trait RedisDeserialize<'de, T>
 where
     T: serde::de::Deserialize<'de>,
